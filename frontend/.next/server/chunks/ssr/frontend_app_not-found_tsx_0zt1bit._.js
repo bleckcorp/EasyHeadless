@@ -1,0 +1,3 @@
+module.exports=[63151,a=>{"use strict";var b=a.i(7997),c=a.i(95936);a.s(["default",0,function(){return(0,b.jsxs)("section",{className:"section",children:[(0,b.jsx)("h1",{children:"Page not found"}),(0,b.jsx)("p",{children:"The requested WordPress route was not found in EasyHeadless."}),(0,b.jsx)(c.default,{className:"button",href:"/",children:"Return home"})]})}])},97265,a=>{a.n(a.i(63151))}];
+
+//# sourceMappingURL=frontend_app_not-found_tsx_0zt1bit._.js.map

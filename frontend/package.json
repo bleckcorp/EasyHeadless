@@ -1,0 +1,27 @@
+{
+  "name": "@easyheadless/frontend",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.2.7",
+    "postcss": "^8.5.10",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^9.16.0",
+    "eslint-config-next": "16.2.7",
+    "typescript-eslint": "^8.60.1",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "easyheadless",
+  "private": true,
+  "version": "0.1.0",
+  "description": "WordPress headless bridge plugin and Next.js starter for small-business agency websites.",
+  "workspaces": [
+    "frontend",
+    "mcp-server",
+    "packages/*"
+  ],
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.10"
+    }
+  },
+  "scripts": {
+    "lint:php": "find easyheadless-bridge -name '*.php' -print0 | xargs -0 -n1 php -l",
+    "test:php": "php tests/php/smoke.php && php tests/php/admin-assets.php && php tests/php/fluent-forms.php && php tests/php/updater.php",
+    "package:plugin": "bash scripts/package-plugin.sh",
+    "client:build": "npm --workspace @easyheadless/client run build",
+    "client:typecheck": "npm --workspace @easyheadless/client run typecheck",
+    "mcp:build": "npm --workspace @easyheadless/mcp-server run build",
+    "mcp:typecheck": "npm --workspace @easyheadless/mcp-server run typecheck",
+    "frontend:typecheck": "npm --workspace frontend run typecheck",
+    "frontend:lint": "npm --workspace frontend run lint"
+  }
+}

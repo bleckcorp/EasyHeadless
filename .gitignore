@@ -1,0 +1,22 @@
+
+# Ralph spec workflow (local agent workspace)
+.specify/
+specs/
+history/
+logs/
+completion_log/
+IMPLEMENTATION_PLAN.md
+RALPH_PROMPT.md
+.DS_Store
+.cache/
+.gitnexus/
+.playwright-mcp/
+.wp-env/
+node_modules/
+**/node_modules/
+vendor/
+dist/
+**/dist/
+/elim-*.png
+/design/concepts/
+/tmp/

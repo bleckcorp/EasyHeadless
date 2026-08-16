@@ -1,0 +1,82 @@
+name: EasyHeadless plugin verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: composer install --no-interaction --prefer-dist
+      - run: npm ci
+      - run: composer analyse
+      - run: npm run lint:php
+      - run: npm run test:php
+      - run: npm run client:typecheck
+      - run: npm run mcp:typecheck
+      - run: npm --workspace @easyheadless/mcp-server test
+      - run: npm run package:plugin
+
+      - name: Start disposable WordPress
+        run: npx --yes @wordpress/env start --update
+
+      - name: Activate plugin and render every admin screen
+        run: |
+          npx --yes @wordpress/env run cli wp plugin install /var/www/html/wp-content/easyheadless-bridge.zip --force --activate
+          npx --yes @wordpress/env run cli wp eval '
+            wp_set_current_user(1);
+            do_action("admin_menu");
+            $hooks = array(
+              "toplevel_page_easyheadless",
+              "easyheadless_page_easyheadless-site",
+              "easyheadless_page_easyheadless-navigation",
+              "easyheadless_page_easyheadless-portfolio",
+              "easyheadless_page_easyheadless-courses",
+              "easyheadless_page_easyheadless-forms",
+              "easyheadless_page_easyheadless-integrations"
+            );
+            foreach ($hooks as $hook) { do_action("admin_enqueue_scripts", $hook); }
+            foreach (array("render_overview", "render_site", "render_navigation", "render_portfolio", "render_courses", "render_forms", "render_integrations") as $renderer) {
+              ob_start(); call_user_func(array("EasyHeadless_Admin", $renderer)); ob_end_clean();
+            }
+            echo "All EasyHeadless admin screens rendered successfully.\n";
+          '
+          npx --yes @wordpress/env run cli wp eval '
+            $log = WP_CONTENT_DIR . "/debug.log";
+            $contents = file_exists($log) ? file_get_contents($log) : "";
+            if (preg_match("/(PHP Fatal error|PHP Parse error|Uncaught Error)/", $contents)) {
+              fwrite(STDERR, $contents);
+              exit(1);
+            }
+            echo "No fatal errors recorded.\n";
+          '
+
+      - name: Verify Fluent Forms 6.2 submission integration
+        run: |
+          npx --yes @wordpress/env run cli wp plugin install https://downloads.wordpress.org/plugin/fluentform.6.2.12.zip --activate
+          npx --yes @wordpress/env run cli wp eval-file /var/www/html/wp-content/easyheadless-tests/fluent-forms.php
+
+      - name: Stop disposable WordPress
+        if: always()
+        run: npx --yes @wordpress/env stop || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: easyheadless-plugin
+          path: dist/easyheadless-bridge-*.zip

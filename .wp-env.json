@@ -1,0 +1,14 @@
+{
+  "phpVersion": "8.2",
+  "testsEnvironment": false,
+  "plugins": [],
+  "mappings": {
+    "wp-content/easyheadless-bridge.zip": "./dist/easyheadless-bridge.zip",
+    "wp-content/easyheadless-tests": "./tests/integration"
+  },
+  "config": {
+    "WP_DEBUG": true,
+    "WP_DEBUG_DISPLAY": true,
+    "SCRIPT_DEBUG": true
+  }
+}

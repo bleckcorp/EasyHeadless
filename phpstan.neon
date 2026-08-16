@@ -1,0 +1,16 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 2
+    paths:
+        - easyheadless-bridge
+    bootstrapFiles:
+        - tests/phpstan/bootstrap.php
+    scanFiles:
+        - tests/phpstan/optional-plugin-stubs.php
+        - tests/phpstan/fluent-forms-stubs.php
+    tmpDir: .cache/phpstan
+    reportUnmatchedIgnoredErrors: false
+    parallel:
+        maximumNumberOfProcesses: 1
