@@ -17,6 +17,8 @@ node_modules/
 vendor/
 dist/
 **/dist/
+**/.next/
+*.tsbuildinfo
 /elim-*.png
 /design/concepts/
 /tmp/

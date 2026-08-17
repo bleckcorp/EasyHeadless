@@ -97,7 +97,7 @@ final class EasyHeadless_Plugin
                 ),
                 'public' => true,
                 'show_in_rest' => true,
-                'show_in_menu' => self::ADMIN_MENU_SLUG,
+                'show_in_menu' => false,
                 'menu_icon' => $icon,
                 'supports' => array('title', 'editor', 'excerpt', 'thumbnail', 'page-attributes'),
                 'has_archive' => false,

@@ -26,7 +26,7 @@ final class EasyHeadless_Admin
     public static function register_menu()
     {
         add_menu_page(
-            'EasyHeadless',
+            'EasyHeadless Dashboard',
             'EasyHeadless',
             'edit_posts',
             EasyHeadless_Plugin::ADMIN_MENU_SLUG,
@@ -35,13 +35,32 @@ final class EasyHeadless_Admin
             30
         );
 
-        self::submenu('Overview', 'Overview', EasyHeadless_Plugin::ADMIN_MENU_SLUG, 'render_overview', 'edit_posts');
-        self::submenu('Site & Portal', 'Site & Portal', self::PAGE_PREFIX . 'site', 'render_site');
+        self::submenu('Site & URLs', 'Site & URLs', self::PAGE_PREFIX . 'site', 'render_site');
         self::submenu('Navigation', 'Navigation', self::PAGE_PREFIX . 'navigation', 'render_navigation', 'edit_theme_options');
-        self::submenu('Portfolio', 'Portfolio', self::PAGE_PREFIX . 'portfolio', 'render_portfolio');
-        self::submenu('Courses', 'Courses', self::PAGE_PREFIX . 'courses', 'render_courses');
-        self::submenu('Forms', 'Forms', self::PAGE_PREFIX . 'forms', 'render_forms');
+        self::submenu('Content Library', 'Content Library', self::PAGE_PREFIX . 'content', 'render_content', 'edit_posts');
+
+        if (EasyHeadless_Modules::is_enabled('portfolio')) {
+            self::submenu('Portfolio', 'Portfolio', self::PAGE_PREFIX . 'portfolio', 'render_portfolio');
+        }
+        if (EasyHeadless_Modules::is_enabled('tutor')) {
+            self::submenu('Courses', 'Courses', self::PAGE_PREFIX . 'courses', 'render_courses');
+        }
+        if (EasyHeadless_Modules::is_enabled('forms')) {
+            self::submenu('Forms', 'Forms', self::PAGE_PREFIX . 'forms', 'render_forms');
+        }
+
+        self::submenu('Modules', 'Modules', self::PAGE_PREFIX . 'modules', 'render_modules');
         self::submenu('Integrations & Updates', 'Integrations & Updates', self::PAGE_PREFIX . 'integrations', 'render_integrations');
+
+        // WordPress must retain these submenu records to authorize direct screen
+        // URLs and resolve page titles. The internal plugin rail is the visible
+        // navigation, so hide the duplicate native flyout without unregistering it.
+        add_action('admin_head', array(__CLASS__, 'hide_native_submenu'));
+    }
+
+    public static function hide_native_submenu()
+    {
+        echo '<style id="easyheadless-native-menu">#toplevel_page_easyheadless .wp-submenu{display:none!important}#toplevel_page_easyheadless.wp-has-submenu>a.wp-has-submenu:after{display:none!important}</style>';
     }
 
     private static function submenu($page_title, $menu_title, $slug, $callback, $capability = 'manage_options')
@@ -86,67 +105,148 @@ final class EasyHeadless_Admin
         self::guard('edit_posts');
         $forms = new EasyHeadless_Forms();
         $capabilities = EasyHeadless_Modules::capabilities($forms);
-        $portfolio = get_option(EasyHeadless_Modules::OPTION_PORTFOLIO, array());
         $profile = EasyHeadless_Modules::site_profile();
+        $navigation = EasyHeadless_Modules::navigation();
+        $updater = EasyHeadless_Updater::instance()->public_status();
+        $frontend_ready = !empty($profile['frontend_url']);
+        $origins_ready = (bool) trim((string) get_option(EasyHeadless_Plugin::OPTION_ALLOWED_ORIGINS, ''));
 
-        self::open_page('Overview', 'Your headless site at a glance.', 'overview');
+        self::open_page('Dashboard', 'A clear view of what is connected, what is public, and what needs attention.', 'overview');
         ?>
-        <div class="eh-overview-top">
-            <div class="eh-live-url">
-                <span class="dashicons dashicons-admin-site-alt3" aria-hidden="true"></span>
-                <div><span>Live frontend</span><a href="<?php echo esc_url($profile['frontend_url']); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($profile['frontend_url'] ? $profile['frontend_url'] : 'Not configured'); ?></a></div>
+        <section class="eh-connection-panel <?php echo $frontend_ready ? 'is-ready' : 'needs-setup'; ?>">
+            <div class="eh-connection-summary">
+                <span class="dashicons <?php echo $frontend_ready ? 'dashicons-yes-alt' : 'dashicons-admin-generic'; ?>" aria-hidden="true"></span>
+                <div>
+                    <h2><?php echo $frontend_ready ? 'Connection is ready' : 'Finish connecting your frontend'; ?></h2>
+                    <p><?php echo $frontend_ready ? 'WordPress is ready to serve this headless website.' : 'Add the public frontend URL and allowed origin to complete setup.'; ?></p>
+                </div>
             </div>
-        </div>
-        <div class="eh-status-grid">
+            <dl class="eh-connection-details">
+                <div><dt>Public frontend</dt><dd><?php echo esc_html($frontend_ready ? $profile['frontend_url'] : 'Not configured'); ?></dd></div>
+                <div><dt>REST API</dt><dd class="eh-text-success">Available</dd></div>
+            </dl>
+            <a class="button button-primary" href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_PREFIX . 'site')); ?>"><?php echo $frontend_ready ? 'Review setup' : 'Configure site'; ?></a>
+        </section>
+        <section class="eh-section-block">
+            <div class="eh-section-heading"><div><h2>Module health</h2><p>Only enabled capabilities appear in the working navigation.</p></div><a class="button" href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_PREFIX . 'modules')); ?>">Manage modules</a></div>
+            <div class="eh-health-table">
+                <div class="eh-table-head"><span>Module</span><span>Status</span><span>Notes</span><span></span></div>
             <?php foreach ($capabilities as $key => $status) : ?>
                 <?php
                 $label = self::module_label($key);
-                $value = 'portfolio' === $key ? count(is_array($portfolio) ? $portfolio : array()) . ' items' : ucfirst($status['status']);
+                $targets = array('core' => 'site', 'portfolio' => 'portfolio', 'church' => 'content', 'tutor' => 'courses', 'forms' => 'forms', 'updater' => 'integrations');
+                $target = isset($targets[$key]) ? $targets[$key] : 'modules';
+                if ('disabled' === $status['status']) {
+                    $target = 'modules';
+                }
+                $target_slug = 'site' === $target ? self::PAGE_PREFIX . 'site' : ('overview' === $target ? EasyHeadless_Plugin::ADMIN_MENU_SLUG : self::PAGE_PREFIX . $target);
                 ?>
-                <article class="eh-card eh-status-card eh-status-<?php echo esc_attr($status['status']); ?>">
-                    <div class="eh-card-heading"><span class="eh-status-dot"></span><h2><?php echo esc_html($label); ?></h2></div>
-                    <strong><?php echo esc_html($value); ?></strong>
-                    <p><?php echo esc_html($status['message']); ?></p>
-                </article>
+                <a class="eh-health-row eh-status-<?php echo esc_attr($status['status']); ?>" href="<?php echo esc_url(admin_url('admin.php?page=' . $target_slug)); ?>">
+                    <strong><span class="eh-status-dot"></span><?php echo esc_html($label); ?></strong>
+                    <span class="eh-state-label"><?php echo esc_html(ucfirst($status['status'])); ?></span>
+                    <span><?php echo esc_html($status['message'] ? $status['message'] : self::healthy_module_message($key)); ?></span>
+                    <span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span>
+                </a>
             <?php endforeach; ?>
-        </div>
-        <div class="eh-two-column">
-            <section class="eh-card">
-                <div class="eh-section-heading"><div><h2>Quick actions</h2><p>Configure one part of EasyHeadless at a time.</p></div></div>
-                <div class="eh-action-list">
+            </div>
+        </section>
+        <div class="eh-dashboard-columns">
+            <section class="eh-panel">
+                <div class="eh-section-heading"><div><h2>Finish setup</h2><p>Complete these checks before launch.</p></div></div>
+                <ul class="eh-task-list">
                     <?php foreach (array(
-                        array('Site & Portal', 'Company details, domains, and portal links.', self::PAGE_PREFIX . 'site'),
-                        array('Portfolio', 'Add, categorize, and edit media in manageable pages.', self::PAGE_PREFIX . 'portfolio'),
-                        array('Courses', 'Choose the Tutor LMS courses featured publicly.', self::PAGE_PREFIX . 'courses'),
-                        array('Forms', 'Control the forms available through the public API.', self::PAGE_PREFIX . 'forms'),
-                    ) as $action) : ?>
-                        <a href="<?php echo esc_url(admin_url('admin.php?page=' . $action[2])); ?>"><span><strong><?php echo esc_html($action[0]); ?></strong><small><?php echo esc_html($action[1]); ?></small></span><span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span></a>
+                        array($frontend_ready, 'Set the public frontend URL', 'Tell EasyHeadless where the public site lives.', 'site'),
+                        array($origins_ready, 'Allow the frontend origin', 'Permit browser requests from the public site.', 'site'),
+                        array(!empty($navigation), 'Review public navigation', 'Select and verify the WordPress menu used by the frontend.', 'navigation'),
+                        array(!empty($updater['configured']), 'Configure trusted updates', 'Add a signed HTTPS release manifest and public key.', 'integrations'),
+                    ) as $task) : ?>
+                        <li class="<?php echo $task[0] ? 'is-complete' : ''; ?>"><span class="dashicons <?php echo $task[0] ? 'dashicons-yes-alt' : 'dashicons-marker'; ?>" aria-hidden="true"></span><a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_PREFIX . $task[3])); ?>"><strong><?php echo esc_html($task[1]); ?></strong><small><?php echo esc_html($task[2]); ?></small></a></li>
+                    <?php endforeach; ?>
+                </ul>
+            </section>
+            <section class="eh-panel">
+                <div class="eh-section-heading"><div><h2>Manage content</h2><p>Edit reusable content without crowding the WordPress menu.</p></div><a href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_PREFIX . 'content')); ?>">View all</a></div>
+                <div class="eh-action-list">
+                    <?php foreach (array_slice(self::content_types(), 0, 4) as $type => $content) : ?>
+                        <a href="<?php echo esc_url(admin_url('edit.php?post_type=' . $type)); ?>"><span class="dashicons <?php echo esc_attr($content['icon']); ?>" aria-hidden="true"></span><span><strong><?php echo esc_html($content['label']); ?></strong><small><?php echo esc_html($content['description']); ?></small></span><span class="dashicons dashicons-arrow-right-alt2" aria-hidden="true"></span></a>
                     <?php endforeach; ?>
                 </div>
             </section>
-            <section class="eh-card">
-                <div class="eh-section-heading"><div><h2>Architecture</h2><p>Current public delivery model.</p></div></div>
+            <section class="eh-panel">
+                <div class="eh-section-heading"><div><h2>Architecture</h2><p>Current delivery model.</p></div></div>
                 <dl class="eh-definition-list">
-                    <div><dt>WordPress / LMS</dt><dd><?php echo esc_html($profile['lms_url'] ? $profile['lms_url'] : home_url('/')); ?></dd></div>
-                    <div><dt>Public frontend</dt><dd><?php echo esc_html($profile['frontend_url'] ? $profile['frontend_url'] : 'Not configured'); ?></dd></div>
+                    <div><dt>WordPress CMS</dt><dd><?php echo esc_html(home_url('/')); ?></dd></div>
+                    <div><dt>Frontend</dt><dd><?php echo esc_html($frontend_ready ? $profile['frontend_url'] : 'Not configured'); ?></dd></div>
+                    <div><dt>API</dt><dd><?php echo esc_html(rest_url('easyheadless/v1')); ?></dd></div>
                     <div><dt>Headless routing</dt><dd><?php echo !empty($profile['headless_routing']) ? 'Enabled' : 'Disabled'; ?></dd></div>
-                    <div><dt>API version</dt><dd><?php echo esc_html(EASYHEADLESS_VERSION); ?></dd></div>
+                    <div><dt>Updates</dt><dd><?php echo !empty($updater['configured']) ? 'Configured' : 'Not configured'; ?></dd></div>
                 </dl>
             </section>
         </div>
-        <?php if (current_user_can('manage_options')) : ?>
-            <?php $modules = EasyHeadless_Modules::enabled_modules(); ?>
-            <form class="eh-card" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+        <?php
+        self::close_page();
+    }
+
+    public static function render_content()
+    {
+        self::guard('edit_posts');
+        self::open_page('Content library', 'Manage reusable website content while keeping the WordPress menu focused.', 'content');
+        ?>
+        <section class="eh-section-block">
+            <div class="eh-section-heading"><div><h2>Content types</h2><p>These native WordPress records are available to headless frontends through EasyHeadless.</p></div></div>
+            <div class="eh-content-table">
+                <div class="eh-table-head"><span>Content</span><span>Purpose</span><span>Items</span><span>Actions</span></div>
+                <?php foreach (self::content_types() as $type => $content) : ?>
+                    <div class="eh-content-row">
+                        <strong><span class="eh-icon-box dashicons <?php echo esc_attr($content['icon']); ?>" aria-hidden="true"></span><?php echo esc_html($content['label']); ?></strong>
+                        <span><?php echo esc_html($content['description']); ?></span>
+                        <span><?php echo esc_html(self::post_type_count($type)); ?></span>
+                        <span class="eh-row-actions"><a class="button" href="<?php echo esc_url(admin_url('edit.php?post_type=' . $type)); ?>">Manage</a><a href="<?php echo esc_url(admin_url('post-new.php?post_type=' . $type)); ?>">Add new</a></span>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </section>
+        <?php
+        self::close_page();
+    }
+
+    public static function render_modules()
+    {
+        self::guard();
+        $modules = EasyHeadless_Modules::enabled_modules();
+        $forms = new EasyHeadless_Forms();
+        $health = EasyHeadless_Modules::capabilities($forms);
+        $definitions = array(
+            'core' => array('Core', 'Required foundation, normalized API, routing, and site settings.', 'dashicons-admin-generic'),
+            'portfolio' => array('Portfolio', 'Create curated media galleries from WordPress attachments.', 'dashicons-format-gallery'),
+            'church' => array('Church', 'Add sermons, events, ministries, leaders, services, and policies.', 'dashicons-admin-home'),
+            'tutor' => array('Tutor LMS', 'Expose safe public course summaries from Tutor LMS.', 'dashicons-welcome-learn-more'),
+            'forms' => array('Fluent Forms', 'Expose approved form schemas and native submission handling.', 'dashicons-feedback'),
+        );
+
+        self::open_page('Modules', 'Tailor EasyHeadless to each project without deleting saved content.', 'modules');
+        self::notice();
+        ?>
+        <div class="eh-module-layout">
+            <form class="eh-section-block" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <?php self::form_token('easyheadless_modules'); ?>
-                <div class="eh-section-heading"><div><h2>Modules</h2><p>Enable only the capabilities this WordPress installation needs.</p></div><button class="button button-primary" type="submit">Save modules</button></div>
-                <div class="eh-module-controls">
-                    <label><input type="checkbox" checked disabled><span><strong>Core</strong><small>Always enabled</small></span></label>
-                    <?php foreach (array('portfolio' => 'Portfolio', 'church' => 'Church', 'tutor' => 'Tutor LMS', 'forms' => 'Fluent Forms') as $key => $label) : ?>
-                        <label><input type="checkbox" name="modules[<?php echo esc_attr($key); ?>]" value="1" <?php checked(!empty($modules[$key])); ?>><span><strong><?php echo esc_html($label); ?></strong><small><?php echo !empty($modules[$key]) ? 'Enabled' : 'Disabled'; ?></small></span></label>
+                <div class="eh-module-table">
+                    <div class="eh-table-head"><span>Module</span><span>Purpose</span><span>Dependency status</span><span>State</span></div>
+                    <?php foreach ($definitions as $key => $definition) : ?>
+                        <?php $status = isset($health[$key]) ? $health[$key] : array('status' => 'ready', 'message' => ''); ?>
+                        <label class="eh-module-row <?php echo 'core' === $key ? 'is-locked' : ''; ?>">
+                            <strong><span class="eh-icon-box dashicons <?php echo esc_attr($definition[2]); ?>" aria-hidden="true"></span><?php echo esc_html($definition[0]); ?></strong>
+                            <span><?php echo esc_html($definition[1]); ?></span>
+                            <span class="eh-dependency eh-status-<?php echo esc_attr($status['status']); ?>"><span class="eh-status-dot"></span><span><strong><?php echo esc_html('ready' === $status['status'] ? 'All dependencies met' : ucfirst($status['status'])); ?></strong><small><?php echo esc_html($status['message']); ?></small></span></span>
+                            <span><?php if ('core' === $key) : ?><span class="eh-locked-state"><span class="dashicons dashicons-lock" aria-hidden="true"></span>Always active</span><input type="hidden" name="modules[core]" value="1"><?php else : ?><span class="eh-switch"><input type="checkbox" name="modules[<?php echo esc_attr($key); ?>]" value="1" <?php checked(!empty($modules[$key])); ?>><i aria-hidden="true"></i><span class="screen-reader-text">Enable <?php echo esc_html($definition[0]); ?></span></span><?php endif; ?></span>
+                        </label>
                     <?php endforeach; ?>
                 </div>
+                <p class="eh-module-note"><span class="dashicons dashicons-info-outline" aria-hidden="true"></span>Disabling a module hides its EasyHeadless navigation and API routes. Saved content is not deleted.</p>
+                <div class="eh-form-actions"><button class="button button-primary" type="submit">Save modules</button></div>
             </form>
-        <?php endif; ?>
+            <aside class="eh-help-panel"><h2>What changes?</h2><h3>Enabling a module</h3><p>Adds the module’s management screen and API routes. Missing dependencies are shown as degraded until installed.</p><h3>Disabling a module</h3><p>Removes the module from the working navigation and public routes while preserving its settings and content.</p></aside>
+        </div>
         <?php
         self::close_page();
     }
@@ -155,7 +255,7 @@ final class EasyHeadless_Admin
     {
         self::guard();
         $profile = EasyHeadless_Modules::site_profile();
-        self::open_page('Site & Portal', 'Manage company details, frontend URLs, and routing independently.', 'site');
+        self::open_page('Site & URLs', 'Manage site identity, frontend URLs, portal links, and routing in one place.', 'site');
         self::notice();
         ?>
         <form class="eh-card eh-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -358,7 +458,7 @@ final class EasyHeadless_Admin
         self::authorize();
         $modules = isset($_POST['modules']) ? wp_unslash($_POST['modules']) : array();
         update_option(EasyHeadless_Modules::OPTION_ENABLED_MODULES, EasyHeadless_Modules::sanitize_enabled_modules($modules));
-        self::redirect('easyheadless', 'saved');
+        self::redirect(self::PAGE_PREFIX . 'modules', 'saved');
     }
 
     public static function save_site()
@@ -473,17 +573,108 @@ final class EasyHeadless_Admin
         $profile = EasyHeadless_Modules::site_profile();
         ?>
         <div class="wrap eh-admin">
-            <header class="eh-admin-header"><div class="eh-brand"><span class="dashicons dashicons-rest-api" aria-hidden="true"></span><strong>EasyHeadless</strong><small>v<?php echo esc_html(EASYHEADLESS_VERSION); ?></small></div><div class="eh-environment"><span></span>Production<?php if (!empty($profile['frontend_url'])) : ?><a class="button" href="<?php echo esc_url($profile['frontend_url']); ?>" target="_blank" rel="noopener noreferrer">View site ↗</a><?php endif; ?></div></header>
-            <nav class="eh-tabs" aria-label="EasyHeadless sections">
-                <?php foreach (array('overview' => array('Overview', EasyHeadless_Plugin::ADMIN_MENU_SLUG), 'site' => array('Site & Portal', self::PAGE_PREFIX . 'site'), 'navigation' => array('Navigation', self::PAGE_PREFIX . 'navigation'), 'portfolio' => array('Portfolio', self::PAGE_PREFIX . 'portfolio'), 'courses' => array('Courses', self::PAGE_PREFIX . 'courses'), 'forms' => array('Forms', self::PAGE_PREFIX . 'forms'), 'integrations' => array('Integrations & Updates', self::PAGE_PREFIX . 'integrations')) as $key => $item) : ?><a class="<?php echo $active === $key ? 'is-active' : ''; ?>" href="<?php echo esc_url(admin_url('admin.php?page=' . $item[1])); ?>"><?php echo esc_html($item[0]); ?></a><?php endforeach; ?>
-            </nav>
-            <main class="eh-main"><div class="eh-page-title"><h1><?php echo esc_html($title); ?></h1><p><?php echo esc_html($subtitle); ?></p></div>
+            <header class="eh-admin-header">
+                <div class="eh-brand"><span class="dashicons dashicons-rest-api" aria-hidden="true"></span><strong>EasyHeadless</strong><small>v<?php echo esc_html(EASYHEADLESS_VERSION); ?></small></div>
+                <div class="eh-environment"><span></span><?php echo wp_get_environment_type() === 'production' ? 'Production' : esc_html(ucfirst(wp_get_environment_type())); ?><?php if (!empty($profile['frontend_url'])) : ?><a href="<?php echo esc_url($profile['frontend_url']); ?>" target="_blank" rel="noopener noreferrer">View site <span class="dashicons dashicons-external" aria-hidden="true"></span></a><?php endif; ?></div>
+            </header>
+            <div class="eh-shell">
+                <nav class="eh-side-nav" aria-label="EasyHeadless sections">
+                    <?php foreach (self::admin_navigation() as $group => $items) : ?>
+                        <div class="eh-nav-group">
+                            <span class="eh-nav-label"><?php echo esc_html($group); ?></span>
+                            <?php foreach ($items as $key => $item) : ?>
+                                <a class="<?php echo $active === $key ? 'is-active' : ''; ?>" href="<?php echo esc_url(admin_url('admin.php?page=' . $item['slug'])); ?>"><span class="dashicons <?php echo esc_attr($item['icon']); ?>" aria-hidden="true"></span><span><?php echo esc_html($item['label']); ?></span></a>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endforeach; ?>
+                </nav>
+                <main class="eh-main"><div class="eh-page-title"><h1><?php echo esc_html($title); ?></h1><p><?php echo esc_html($subtitle); ?></p></div>
         <?php
     }
 
     private static function close_page()
     {
-        echo '</main></div>';
+        echo '</main></div></div>';
+    }
+
+    private static function admin_navigation()
+    {
+        $navigation = array(
+            'Overview' => array(
+                'overview' => array('label' => 'Dashboard', 'slug' => EasyHeadless_Plugin::ADMIN_MENU_SLUG, 'icon' => 'dashicons-admin-home'),
+            ),
+            'Setup' => array(
+                'site' => array('label' => 'Site & URLs', 'slug' => self::PAGE_PREFIX . 'site', 'icon' => 'dashicons-admin-site-alt3'),
+                'navigation' => array('label' => 'Navigation', 'slug' => self::PAGE_PREFIX . 'navigation', 'icon' => 'dashicons-menu-alt3'),
+            ),
+            'Content' => array(
+                'content' => array('label' => 'Content library', 'slug' => self::PAGE_PREFIX . 'content', 'icon' => 'dashicons-database-view'),
+            ),
+            'System' => array(
+                'modules' => array('label' => 'Modules', 'slug' => self::PAGE_PREFIX . 'modules', 'icon' => 'dashicons-admin-plugins'),
+                'integrations' => array('label' => 'Integrations & updates', 'slug' => self::PAGE_PREFIX . 'integrations', 'icon' => 'dashicons-update'),
+            ),
+        );
+
+        if (EasyHeadless_Modules::is_enabled('portfolio')) {
+            $navigation['Content']['portfolio'] = array('label' => 'Portfolio', 'slug' => self::PAGE_PREFIX . 'portfolio', 'icon' => 'dashicons-format-gallery');
+        }
+        if (EasyHeadless_Modules::is_enabled('tutor')) {
+            $navigation['Content']['courses'] = array('label' => 'Courses', 'slug' => self::PAGE_PREFIX . 'courses', 'icon' => 'dashicons-welcome-learn-more');
+        }
+        if (EasyHeadless_Modules::is_enabled('forms')) {
+            $navigation['Content']['forms'] = array('label' => 'Forms', 'slug' => self::PAGE_PREFIX . 'forms', 'icon' => 'dashicons-feedback');
+        }
+
+        return $navigation;
+    }
+
+    private static function content_types()
+    {
+        $types = array(
+            'eh_service' => array('label' => 'Services', 'description' => 'Reusable service and capability pages.', 'icon' => 'dashicons-hammer'),
+            'eh_testimonial' => array('label' => 'Testimonials', 'description' => 'Approved customer and partner feedback.', 'icon' => 'dashicons-format-quote'),
+            'eh_faq' => array('label' => 'FAQs', 'description' => 'Frequently asked questions and answers.', 'icon' => 'dashicons-editor-help'),
+            'eh_team_member' => array('label' => 'Team members', 'description' => 'People, roles, biographies, and portraits.', 'icon' => 'dashicons-groups'),
+        );
+
+        if (EasyHeadless_Modules::is_enabled('church')) {
+            $types = array_merge($types, array(
+                'eh_church_settings' => array('label' => 'Church settings', 'description' => 'Identity, contact, giving, and online meeting details.', 'icon' => 'dashicons-admin-home'),
+                'eh_sermon' => array('label' => 'Sermons', 'description' => 'Messages, speakers, media, and scripture references.', 'icon' => 'dashicons-microphone'),
+                'eh_event' => array('label' => 'Events', 'description' => 'Upcoming gatherings and event information.', 'icon' => 'dashicons-calendar-alt'),
+                'eh_ministry' => array('label' => 'Ministries', 'description' => 'Ministry groups, focus areas, and contacts.', 'icon' => 'dashicons-heart'),
+                'eh_leader' => array('label' => 'Leaders', 'description' => 'Church leadership profiles and roles.', 'icon' => 'dashicons-businessperson'),
+                'eh_service_time' => array('label' => 'Service times', 'description' => 'Meeting schedules, locations, and online links.', 'icon' => 'dashicons-clock'),
+                'eh_policy' => array('label' => 'Policies', 'description' => 'Safeguarding and other public policy documents.', 'icon' => 'dashicons-shield'),
+            ));
+        }
+
+        return $types;
+    }
+
+    private static function post_type_count($post_type)
+    {
+        $counts = wp_count_posts($post_type);
+        if (!$counts) {
+            return 0;
+        }
+
+        return array_sum(array_map('intval', get_object_vars($counts)));
+    }
+
+    private static function healthy_module_message($key)
+    {
+        $messages = array(
+            'core' => 'Core API and settings are available.',
+            'portfolio' => 'Portfolio management is available.',
+            'church' => 'Church content tools are available.',
+            'tutor' => 'Tutor LMS is connected.',
+            'forms' => 'Fluent Forms is connected.',
+            'updater' => 'Trusted updates are configured.',
+        );
+
+        return isset($messages[$key]) ? $messages[$key] : 'Available.';
     }
 
     private static function module_label($key)
