@@ -1,24 +1,92 @@
 
-# Ralph spec workflow (local agent workspace)
-.specify/
-specs/
-history/
-logs/
-completion_log/
-IMPLEMENTATION_PLAN.md
-RALPH_PROMPT.md
-.DS_Store
-.cache/
-.gitnexus/
-.playwright-mcp/
-.wp-env/
+# Dependencies
 node_modules/
 **/node_modules/
 vendor/
+**/vendor/
+
+# Build and runtime outputs
 dist/
 **/dist/
+.next/
 **/.next/
+out/
+**/out/
+build/
+**/build/
 *.tsbuildinfo
+**/*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+**/.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+!**/.env.example
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+*.secret
+
+# Logs and debugging
+logs/
+**/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# WordPress local environments
+.wp-env/
+**/wp-content/uploads/
+**/wp-content/upgrade/
+
+# Testing and code quality caches
+.cache/
+**/.cache/
+.nyc_output/
+coverage/
+**/coverage/
+.phpunit.result.cache
+phpstan.result.cache
+.playwright-mcp/
+playwright-report/
+test-results/
+
+# IDE and OS files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.idea/
+**/.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Local agent, specs, and scratch files
+.specify/
+specs/
+history/
+completion_log/
+IMPLEMENTATION_PLAN.md
+RALPH_PROMPT.md
+.gitnexus/
 /elim-*.png
 /design/concepts/
 /tmp/
+tmp/
+
