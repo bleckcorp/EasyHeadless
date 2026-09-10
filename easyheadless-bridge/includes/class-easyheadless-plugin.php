@@ -11,6 +11,7 @@ require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-modules.php'
 require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-updater.php';
 require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-rest.php';
 require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-admin.php';
+require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-publication.php';
 
 final class EasyHeadless_Plugin
 {
@@ -47,12 +48,14 @@ final class EasyHeadless_Plugin
             update_option(EasyHeadless_Modules::OPTION_ENABLED_MODULES, EasyHeadless_Modules::enabled_modules());
         }
 
+        EasyHeadless_Publication::activate();
     }
 
     private function __construct()
     {
         EasyHeadless_Updater::instance()->register_hooks();
         EasyHeadless_Admin::register_hooks();
+        EasyHeadless_Publication::register_hooks();
         add_action('init', array($this, 'register_content_types'));
         add_action('acf/init', array('EasyHeadless_ACF', 'register_field_groups'));
         add_action('rest_api_init', array($this, 'register_rest'));

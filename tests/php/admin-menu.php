@@ -29,9 +29,14 @@ function add_menu_page($page_title, $menu_title, $capability, $slug, $callback, 
     $GLOBALS['eh_admin_menu'][] = compact('page_title', 'menu_title', 'capability', 'slug', 'callback', 'icon', 'position');
 }
 
-function add_submenu_page($parent, $page_title, $menu_title, $capability, $slug, $callback)
+function add_submenu_page($parent, $page_title, $menu_title, $capability, $slug, $callback, $position = null)
 {
-    $GLOBALS['eh_admin_submenus'][] = compact('parent', 'page_title', 'menu_title', 'capability', 'slug', 'callback');
+    $entry = compact('parent', 'page_title', 'menu_title', 'capability', 'slug', 'callback');
+    if (0 === $position) {
+        array_unshift($GLOBALS['eh_admin_submenus'], $entry);
+    } else {
+        $GLOBALS['eh_admin_submenus'][] = $entry;
+    }
 }
 
 function add_action($hook, $callback)
@@ -50,7 +55,11 @@ function admin_menu_assert($condition, $label)
     }
 }
 
+// WordPress registers custom post-type submenus before the plugin admin menu.
+add_submenu_page('easyheadless', 'Issues', 'Issues', 'edit_posts', 'edit.php?post_type=eh_issue', null);
 EasyHeadless_Admin::register_menu();
+admin_menu_assert('easyheadless' === $GLOBALS['eh_admin_submenus'][0]['slug'], 'dashboard remains first when Issues already owns a submenu');
+admin_menu_assert(array('EasyHeadless_Admin', 'render_overview') === $GLOBALS['eh_admin_submenus'][0]['callback'], 'dashboard menu invokes overview');
 
 admin_menu_assert(1 === count($GLOBALS['eh_admin_menu']), 'one EasyHeadless top-level menu is registered');
 admin_menu_assert('easyheadless' === $GLOBALS['eh_admin_menu'][0]['slug'], 'dashboard owns the EasyHeadless menu slug');

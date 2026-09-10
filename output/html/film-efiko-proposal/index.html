@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Film Efiko Website Proposal - Gadar Global Solutions</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230c1810'/%3E%3Cpath d='M45 21.5A16 16 0 1 0 45 42.5H32M32 32h13' fill='none' stroke='%231adf6b' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --paper: #f7f6ee;
+      --ink: #07150d;
+      --muted: #667068;
+      --line: #c8cdc4;
+      --green: #10bd59;
+      --gold: #e6ae22;
+      --white: #ffffff;
+      --page-w: 210mm;
+      --page-h: 297mm;
+      --pad-x: 17mm;
+      --pad-top: 16mm;
+      --pad-bottom: 14mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { background: #d9dcd7; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Avenir Next", Avenir, Montserrat, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .document {
+      display: grid;
+      gap: 14mm;
+      padding: 14mm 0;
+    }
+
+    .page {
+      position: relative;
+      width: var(--page-w);
+      min-height: var(--page-h);
+      margin: 0 auto;
+      overflow: hidden;
+      padding: var(--pad-top) var(--pad-x) 29mm;
+      background-color: var(--paper);
+      background-image: radial-gradient(circle, rgba(7, 21, 13, .09) .45px, transparent .55px);
+      background-size: 17px 17px;
+      box-shadow: 0 12px 42px rgba(5, 18, 10, .17);
+    }
+
+    .page-header,
+    .page-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: .19em;
+      text-transform: uppercase;
+    }
+
+    .page-footer {
+      position: absolute;
+      right: var(--pad-x);
+      bottom: 11mm;
+      left: var(--pad-x);
+      padding-top: 4mm;
+      border-top: 1px solid var(--line);
+      letter-spacing: .08em;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .brand img { width: 36px; height: 36px; }
+    .brand strong { font-size: 25px; letter-spacing: -.055em; }
+    .brand strong::after { content: "."; color: var(--green); }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2, h3, .display, .amount { letter-spacing: -.045em; }
+
+    .display {
+      margin: 15mm 0 12mm;
+      max-width: 165mm;
+      font-size: 36px;
+      line-height: .98;
+      font-weight: 650;
+      word-spacing: .06em;
+    }
+
+    .display .accent { color: var(--green); }
+
+    h2 {
+      margin-bottom: 6mm;
+      font-size: 22px;
+      line-height: 1.05;
+      font-weight: 650;
+    }
+
+    h3 {
+      margin-bottom: 2.5mm;
+      font-size: 13px;
+      line-height: 1.15;
+      font-weight: 650;
+    }
+
+    p, li, td, th {
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .lead {
+      max-width: 145mm;
+      font-size: 14px;
+      line-height: 1.48;
+    }
+
+    .muted { color: var(--muted); }
+    .green { color: var(--green); }
+    .small { font-size: 8.5px; }
+
+    .label {
+      margin-bottom: 3mm;
+      color: var(--green);
+      font-size: 8px;
+      font-weight: 750;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+
+    .rule { height: 1px; margin: 5mm 0; background: var(--line); }
+
+    .columns-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14mm;
+    }
+
+    .text-block { padding-top: 5mm; border-top: 1px solid var(--ink); }
+
+    .numbered-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7mm 13mm;
+      margin-top: 10mm;
+    }
+
+    .numbered-item {
+      display: grid;
+      grid-template-columns: 9mm 1fr;
+      gap: 4mm;
+      padding-top: 4mm;
+      border-top: 1px solid var(--line);
+    }
+
+    .numbered-item .num {
+      color: var(--green);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -.04em;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      padding: 4mm;
+      color: var(--white);
+      background: var(--ink);
+      font-size: 8px;
+      text-align: left;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    td {
+      padding: 3.5mm 4mm;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+    }
+
+    td:first-child { font-weight: 650; }
+    .compact td { padding-top: 2.8mm; padding-bottom: 2.8mm; }
+    .amount-cell { text-align: right; white-space: nowrap; font-weight: 700; }
+
+    .note {
+      margin-top: 6mm;
+      padding: 4mm 5mm;
+      border-left: 2px solid var(--gold);
+      background: rgba(230, 174, 34, .08);
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .dark-panel {
+      color: var(--white);
+      background: var(--ink);
+      padding: 8mm;
+    }
+
+    .dark-panel .label,
+    .dark-panel .accent { color: var(--green); }
+
+    .green-panel {
+      color: var(--ink);
+      background: var(--green);
+      padding: 8mm;
+    }
+
+    .checklist {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .checklist li {
+      position: relative;
+      padding: 3.5mm 0 3.5mm 7mm;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .checklist li::before {
+      content: "";
+      position: absolute;
+      top: 5mm;
+      left: 0;
+      width: 3mm;
+      height: 3mm;
+      background: var(--green);
+    }
+
+    .cover { padding-top: 18mm; }
+
+    .cover .cover-title {
+      margin-top: 47mm;
+      max-width: 145mm;
+      font-size: 50px;
+      line-height: .92;
+      font-weight: 700;
+      letter-spacing: -.065em;
+    }
+
+    .cover .cover-title span { display: block; color: var(--green); }
+
+    .cover .subtitle {
+      max-width: 105mm;
+      margin-top: 10mm;
+      font-size: 16px;
+      line-height: 1.35;
+      font-weight: 600;
+    }
+
+    .cover-meta {
+      position: absolute;
+      left: var(--pad-x);
+      bottom: 29mm;
+    }
+
+    .cover-meta p { margin-bottom: 1.5mm; }
+
+    .cover-bars {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 8mm;
+      height: 100%;
+      background: var(--ink);
+    }
+
+    .cover-bars::before,
+    .cover-bars::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      width: 18mm;
+      height: 18mm;
+    }
+
+    .cover-bars::before { top: 0; background: var(--green); }
+    .cover-bars::after { top: 18mm; background: var(--gold); }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin: 6mm 0 12mm;
+    }
+
+    .step { position: relative; padding-right: 7mm; }
+    .step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 6mm;
+      right: 2mm;
+      width: 19mm;
+      height: 1px;
+      background: var(--ink);
+    }
+
+    .step-number {
+      display: grid;
+      width: 12mm;
+      height: 12mm;
+      margin-bottom: 5mm;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--white);
+      background: var(--green);
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .step p { color: var(--muted); }
+    .duration { color: var(--green); font-size: 8px; font-weight: 750; text-transform: uppercase; }
+
+    .investment-grid {
+      display: grid;
+      grid-template-columns: .95fr 1.05fr;
+      gap: 12mm;
+      align-items: stretch;
+    }
+
+    .initial-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8mm;
+      padding: 7mm;
+      border: 1.5px solid var(--gold);
+    }
+
+    .amount { font-size: 24px; font-weight: 750; }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6mm;
+      padding: 5mm 0;
+      border-bottom: 1px solid rgba(255, 255, 255, .28);
+    }
+
+    .summary-row.total {
+      color: var(--green);
+      border-top: 2px solid var(--green);
+      border-bottom: 0;
+      font-size: 14px;
+    }
+
+    .terms-grid {
+      display: grid;
+      grid-template-columns: 1.18fr .82fr;
+      gap: 12mm;
+    }
+
+    .contact-card {
+      margin-top: 8mm;
+      padding: 8mm;
+      color: var(--white);
+      background: var(--ink);
+    }
+
+    .invoice-title {
+      margin: 18mm 0 11mm;
+      font-size: 42px;
+      line-height: 1;
+      font-weight: 750;
+      letter-spacing: -.055em;
+    }
+
+    .invoice-title::after { content: "."; color: var(--green); }
+
+    .invoice-meta {
+      position: absolute;
+      top: 44mm;
+      right: var(--pad-x);
+      text-align: right;
+    }
+
+    .invoice-parties {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14mm;
+      margin-bottom: 12mm;
+    }
+
+    .invoice-party { padding-top: 4mm; border-top: 1px solid var(--ink); }
+
+    .totals {
+      width: 76mm;
+      margin: 8mm 0 10mm auto;
+    }
+
+    .total-due {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5mm;
+      color: var(--ink);
+      background: var(--green);
+      font-size: 17px;
+      font-weight: 750;
+      line-height: 1;
+    }
+
+    .invoice-bottom {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14mm;
+      margin-top: 9mm;
+    }
+
+    .thank-you {
+      margin-top: 13mm;
+      max-width: 138mm;
+      font-size: 22px;
+      font-weight: 620;
+      line-height: 1.14;
+      letter-spacing: -.035em;
+    }
+
+    @media screen and (max-width: 900px) {
+      .document { gap: 20px; padding: 0; }
+      .page { width: 100%; min-height: auto; padding: 28px 24px 72px; box-shadow: none; }
+      .page:not(.cover) { min-height: 100vh; }
+      .display, .cover .cover-title { font-size: clamp(40px, 10vw, 66px); }
+      .columns-2, .numbered-list, .investment-grid, .terms-grid, .invoice-parties, .invoice-bottom { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr 1fr; gap: 25px; }
+      .step::after { display: none; }
+      table { display: block; overflow-x: auto; }
+      .invoice-meta { position: static; margin: -5mm 0 8mm; text-align: left; }
+      .cover-meta { position: static; margin-top: 55mm; }
+    }
+
+    @media print {
+      @page { size: A4; margin: 0; }
+      html, body { background: none; }
+      .document { display: block; padding: 0; }
+      .page { width: 210mm; height: 297mm; min-height: 297mm; margin: 0; box-shadow: none; break-after: page; page-break-after: always; }
+      .page:last-child { break-after: auto; page-break-after: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="document">
+    <section class="page cover" aria-label="Cover">
+      <div class="brand"><img src="assets/gadar-logo.svg" alt="Gadar Global Solutions"><strong>Gadar</strong></div>
+      <div class="cover-bars" aria-hidden="true"></div>
+      <h1 class="cover-title">Project <span>Proposal</span></h1>
+      <p class="subtitle">Film Efiko Editorial Website Redesign &amp; Headless Publishing</p>
+      <div class="cover-meta">
+        <div class="label">Prepared exclusively for</div>
+        <p><strong>Film Efiko</strong></p>
+        <p>25 August 2026</p>
+      </div>
+    </section>
+
+    <section class="page">
+      <header class="page-header"><span>01 / Project Overview</span><span>Film Efiko</span></header>
+      <h1 class="display">Project <span class="accent">Overview</span></h1>
+      <div class="columns-2">
+        <div>
+          <h2>Project direction</h2>
+          <p class="lead">Film Efiko requires a new editorial website that presents its stories with a clear hierarchy, strong imagery and a consistent magazine-style reading experience.</p>
+          <p>The website will use The Nation's editorial structure as a reference for proportions, typography hierarchy, image ratios, spacing and homepage rhythm while applying Film Efiko's own identity and content requirements.</p>
+        </div>
+        <div>
+          <h2>Technical direction</h2>
+          <p>The public website will be custom-built with Next.js and deployed on Vercel. Film Efiko's present WordPress installation will remain the publishing end.</p>
+          <p>Gadar's EasyHeadless publishing solution will connect WordPress to the Next.js frontend. EasyHeadless is the Gadar blogging and headless publishing solution used for this project.</p>
+        </div>
+      </div>
+
+      <div class="rule"></div>
+      <h2>Design direction</h2>
+      <table>
+        <thead><tr><th>Area</th><th>Approach</th></tr></thead>
+        <tbody>
+          <tr><td>Structure</td><td>The Nation's editorial hierarchy, image proportions, spacing and homepage rhythm will guide the layout.</td></tr>
+          <tr><td>Branding</td><td>Film Efiko's logo and brand assets will replace all reference branding.</td></tr>
+          <tr><td>Colour</td><td>White will be the main background and reading surface, black will be used for text, orange will replace the reference pink or red accent, and blue will be used as a secondary accent.</td></tr>
+          <tr><td>Content control</td><td>WordPress will control articles, images, categories, authors, issues and selected homepage positions.</td></tr>
+          <tr><td>Design control</td><td>Fonts, colours, spacing, image ratios, card styles, grids and responsive layouts will remain fixed in code.</td></tr>
+        </tbody>
+      </table>
+      <footer class="page-footer"><span>Gadar Global Solutions</span><span>02</span></footer>
+    </section>
+
+    <section class="page">
+      <header class="page-header"><span>02 / Proposed Homepage Structure</span><span>Film Efiko</span></header>
+      <h1 class="display">Proposed Homepage <span class="accent">Structure</span></h1>
+      <table class="compact" aria-label="Homepage sections one to six">
+        <thead><tr><th>The Nation reference</th><th>Film Efiko section</th><th>Content behaviour</th></tr></thead>
+        <tbody>
+          <tr><td>Top Stories</td><td>Top Stories</td><td>Same four-story structure. Editors can choose the main hero; otherwise the newest suitable story appears automatically.</td></tr>
+          <tr><td>Latest</td><td>Hot-Hot</td><td>A fast-moving feed of recent or editor-selected stories.</td></tr>
+          <tr><td>Subscribe to Print Mag</td><td>Film Efiko Newsletter</td><td>Newsletter promotion and email subscription.</td></tr>
+          <tr><td>Nation Voices</td><td>Columns</td><td>Selected columnists and their recent or manually chosen articles.</td></tr>
+          <tr><td>Popular</td><td>Hot-Hot</td><td>Six most-read or manually selected stories.</td></tr>
+          <tr><td>From the Archive</td><td>Big Interview</td><td>A prominent selected interview with image, interviewee, introduction, author and link to the full article.</td></tr>
+          <tr><td>The Nation Weekly</td><td>From the Archive</td><td>An older Film Efiko story brought back into focus through manual selection, scheduling or an automatic fallback.</td></tr>
+        </tbody>
+      </table>
+      <div class="note small"><strong>Working label note:</strong> two homepage sections are currently called Hot-Hot. They will be stored separately as Feed and Popular in WordPress; the final public labels can be confirmed during design approval.</div>
+      <footer class="page-footer"><span>Gadar Global Solutions</span><span>03</span></footer>
+    </section>
+
+    <section class="page">
+      <header class="page-header"><span>03 / Proposed Homepage Structure</span><span>Film Efiko</span></header>
+      <h1 class="display">Proposed Homepage <span class="accent">Structure</span></h1>
+      <table class="compact" aria-label="Homepage sections seven to twelve">
+        <thead><tr><th>The Nation reference</th><th>Film Efiko section</th><th>Content behaviour</th></tr></thead>
+        <tbody>
+          <tr><td>Politics</td><td>Ideas</td><td>Three essays, opinions, columns or analysis articles, filled automatically with manual replacement available.</td></tr>
+          <tr><td>Books &amp; the Arts</td><td>Reviews</td><td>Four review articles covering cinema, television, streaming or documentary.</td></tr>
+          <tr><td>New section</td><td>TV &amp; Documentary</td><td>Four articles selected from TV and Documentary, with automatic category fallbacks.</td></tr>
+          <tr><td>World</td><td>Seasonal Spotlight</td><td>Three articles under a changeable title such as AMVCA, Oscars, Cannes, Sundance or FESPACO.</td></tr>
+          <tr><td>Features</td><td>The Cover</td><td>The current cover issue or selected cover story using a magazine-style image proportion and large feature dimensions.</td></tr>
+          <tr><td>New section</td><td>Features</td><td>A separate large-format section containing one prominent feature and supporting articles.</td></tr>
+          <tr><td>Newsletter and footer</td><td>Film Efiko newsletter and footer</td><td>Newsletter, navigation, social links, donation link and company information.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="columns-2" style="margin-top: 10mm">
+        <div class="text-block">
+          <h3>Automatic fallback</h3>
+          <p>Curated positions will have category-based fallbacks. The homepage remains complete when editors do not manually select every story.</p>
+        </div>
+        <div class="text-block">
+          <h3>Design consistency</h3>
+          <p>Image proportions, typography, spacing and colours are fixed in the frontend. WordPress controls what appears, not how the design is styled.</p>
+        </div>
+      </div>
+      <footer class="page-footer"><span>Gadar Global Solutions</span><span>04</span></footer>
+    </section>
+
+    <section class="page">
+      <header class="page-header"><span>04 / Content Management</span><span>Film Efiko</span></header>
+      <h1 class="display">WordPress Content <span class="accent">Management</span></h1>
+      <div class="columns-2">
+        <div>
+          <h2>What Film Efiko can manage</h2>
+          <ul class="checklist">
+            <li>Articles, drafts, scheduling and publication.</li>
+            <li>Authors, columnists, photographs and biographies.</li>
+            <li>Categories, tags and article types.</li>
+            <li>Featured images, captions, credits and alternative text.</li>
+            <li>Homepage hero and supporting stories.</li>
+            <li>Hot-Hot, Big Interview and From the Archive selections.</li>
+            <li>Ideas, Reviews, TV &amp; Documentary and Features.</li>
+            <li>Seasonal Spotlight title, dates and stories.</li>
+            <li>Cover issues and related cover stories.</li>
+            <li>Menus, footer content, newsletter wording and Donate link.</li>
+          </ul>
+        </div>
+        <div>
+          <h2>What remains fixed in code</h2>
+          <ul class="checklist">
+            <li>Fonts and font sizes.</li>
+            <li>Colours and visual hierarchy.</li>
+            <li>Image dimensions and aspect ratios.</li>
+            <li>Homepage grid and section layouts.</li>
+            <li>Spacing and card styles.</li>
+            <li>Header and navigation structure.</li>
+            <li>Mobile and tablet layouts.</li>
+            <li>Animations and interface behaviour.</li>
+          </ul>
+          <div class="note"><strong>Automatic content fallback:</strong> empty homepage positions will be filled from the correct categories so the homepage remains complete when editors do not manually select every story.</div>
+        </div>
+      </div>
+      <footer class="page-footer"><span>Gadar Global Solutions</span><span>05</span></footer>
+    </section>
+
+    <section class="page">
+      <header class="page-header"><span>05 / Audience Functionality</span><span>Film Efiko</span></header>
+      <h1 class="display">Email Access, Newsletter <span class="accent">and Donations</span></h1>
+      <div class="columns-2">
+        <div>
+          <h2>Email-gated articles</h2>
+          <p>This is an email access gate, not a paid paywall. When publishing an article, the editor can choose whether it is public or email-gated.</p>
+          <table class="compact">
+            <tbody>
+              <tr><td>1</td><td>The visitor sees the headline, image and opening portion.</td></tr>
+              <tr><td>2</td><td>The visitor enters an email address.</td></tr>
+              <tr><td>3</td><td>A short verification code is sent to the email address.</td></tr>
+              <tr><td>4</td><td>The visitor enters the code and the full article becomes available.</td></tr>
+              <tr><td>5</td><td>Access is remembered on that browser for an agreed period.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h2>WordPress email list</h2>
+          <p>Email addresses submitted through the article access gate will be stored in a dedicated area in WordPress. Authorised Film Efiko users will be able to view and retrieve the list for approved editorial or audience-management purposes.</p>
+          <p>Newsletter consent will remain separate. Verifying an email address to read an article will not automatically subscribe the reader to marketing messages.</p>
+          <div class="text-block">
+            <h3>Newsletter integration</h3>
+            <p>The Next.js frontend can be connected to the newsletter platform selected by Film Efiko. The subscription form, confirmation messaging and destination list will be configured for that provider.</p>
+          </div>
+          <div class="text-block">
+            <h3>Donate button</h3>
+            <p>The Donate button will link to Film Efiko's selected external donation platform. Direct payment processing on the website is not included.</p>
+          </div>
+        </div>
+      </div>
+      <footer class="page-footer"><span>Gadar Global Solutions</span><span>06</span></footer>
+    </section>
+
+    <section class="page">
+      <header class="page-header"><span>06 / Performance, SEO & Pages</span><span>Film Efiko</span></header>
+      <h1 class="display">Performance, SEO <span class="accent">and Website Pages</span></h1>
+      <div class="columns-2">
+        <div>
+          <h2>Very fast performance</h2>
+          <p>The website will be custom-built in Next.js rather than assembled with a heavy public-facing WordPress theme or page builder. This allows the frontend to load only what each page needs.</p>
+          <ul class="checklist">
+            <li>Fast cached delivery through Vercel.</li>
+            <li>Optimised and correctly sized images.</li>
+            <li>Reduced unnecessary scripts and theme code.</li>
+            <li>Responsive loading for mobile devices.</li>
+            <li>Performance testing before launch.</li>
+          </ul>
+        </div>
+        <div>
+          <h2>Automatic SEO management</h2>
+          <p>Editors will manage titles, descriptions and other SEO information from WordPress. The Next.js website will automatically apply the information to each page.</p>
+          <ul class="checklist">
+            <li>Search-friendly page titles and descriptions.</li>
+            <li>Automatic social-sharing previews.</li>
+            <li>Canonical URLs and structured article information.</li>
+            <li>XML sitemap and search-engine indexing support.</li>
+            <li>Redirects from important existing URLs.</li>
+            <li>SEO-friendly category, author, issue and archive pages.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="rule"></div>
+      <h2>Website pages</h2>
+      <p>Homepage, article pages, category pages, author and columnist pages, issue and cover pages, search, archives, About, Contact, Advertise, Privacy, Terms and other agreed standard pages.</p>
+      <footer class="page-footer"><span>Gadar Global Solutions</span><span>07</span></footer>
+    </section>
+
+    <section class="page">
+      <header class="page-header"><span>07 / Project Deliverables</span><span>Film Efiko</span></header>
+      <h1 class="display">Project <span class="accent">Deliverables</span></h1>
+      <table>
+        <thead><tr><th>Deliverable</th><th>Included work</th></tr></thead>
+        <tbody>
+          <tr><td>Custom Next.js frontend</td><td>Responsive homepage, story, category, author, issue, search and standard information pages.</td></tr>
+          <tr><td>WordPress publishing</td><td>Film Efiko's present WordPress installation remains the editorial backend.</td></tr>
+          <tr><td>Gadar EasyHeadless publishing solution</td><td>Connects the WordPress publishing end to the Next.js frontend and delivers stories, categories, authors, issues and homepage selections.</td></tr>
+          <tr><td>Audience features</td><td>Email-gated articles, newsletter connection and configurable donation calls to action.</td></tr>
+          <tr><td>Performance and SEO</td><td>Fast Next.js delivery, image optimisation, metadata, sitemap, structured information, redirects and analytics.</td></tr>
+          <tr><td>Deployment</td><td>Vercel project setup, production deployment and domain connection.</td></tr>
+          <tr><td>Content transition</td><td>Audit and structured reuse of suitable existing posts, images, authors and categories.</td></tr>
+          <tr><td>Handover</td><td>Editorial training, operating guidance and post-launch defect support.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="columns-2" style="margin-top: 10mm">
+        <div class="text-block">
+          <div class="label">Hosting</div>
+          <h3>Vercel free plan - ₦0</h3>
+          <p>The free plan is expected to meet Film Efiko's present requirement. Any future paid upgrade or third-party service is billed directly to the client.</p>
+        </div>
+        <div class="text-block">
+          <div class="label">Current exclusions</div>
+          <p>Native donation payment processing, paid membership billing, full copywriting, photography, paid media licences and third-party provider fees require separate scoping or direct client payment.</p>
+        </div>
+      </div>
+      <footer class="page-footer"><span>Gadar Global Solutions</span><span>08</span></footer>
+    </section>
+
+    <section class="page">
+      <header class="page-header"><span>08 / Timeline & Investment</span><span>Film Efiko</span></header>
+      <h1 class="display">Timeline and <span class="accent">Investment</span></h1>
+      <div class="steps">
+        <div class="step"><div class="step-number">1</div><h3>Discovery &amp; content</h3><p>Kickoff, content audit, URL review and provider decisions.</p><div class="duration">3-5 working days</div></div>
+        <div class="step"><div class="step-number">2</div><h3>Design direction</h3><p>Visual system and priority page approval.</p><div class="duration">5-8 working days</div></div>
+        <div class="step"><div class="step-number">3</div><h3>Build &amp; integration</h3><p>Frontend, WordPress publishing, audience features and QA.</p><div class="duration">15-25 working days</div></div>
+        <div class="step"><div class="step-number">4</div><h3>Launch &amp; handover</h3><p>Migration check, deployment, training and documentation.</p><div class="duration">3-5 working days</div></div>
+      </div>
+
+      <div class="investment-grid">
+        <div>
+          <h2>Commercial summary</h2>
+          <p>The professional fee covers planning, custom design, frontend development, Gadar EasyHeadless publishing integration, deployment, training and handover.</p>
+          <div class="initial-box"><span><strong>Initial invoice</strong><br><span class="small">20% commencement payment</span></span><strong class="amount">₦70,000</strong></div>
+        </div>
+        <div class="dark-panel">
+          <div class="summary-row"><span>Custom website design &amp; development</span><strong>₦350,000</strong></div>
+          <div class="summary-row"><span>Vercel hosting</span><strong>₦0</strong></div>
+          <div class="summary-row total"><span>Total investment</span><strong>₦350,000</strong></div>
+          <p class="small" style="margin-top: 10mm; color: #cbd3cc">Estimated delivery: 5-8 weeks from receipt of the commencement payment and all essential access and content. Client feedback and third-party provider decisions may affect delivery.</p>
+        </div>
+      </div>
+      <footer class="page-footer"><span>Gadar Global Solutions</span><span>09</span></footer>
+    </section>
+
+    <section class="page">
+      <header class="page-header"><span>09 / Payment & Project Terms</span><span>Film Efiko</span></header>
+      <h1 class="display">Payment Schedule and <span class="accent">Project Terms</span></h1>
+      <div class="terms-grid">
+        <div>
+          <h2>Payment schedule</h2>
+          <table>
+            <thead><tr><th>Stage</th><th>Trigger</th><th>Amount</th></tr></thead>
+            <tbody>
+              <tr><td>20%</td><td>Project commencement</td><td class="amount-cell">₦70,000</td></tr>
+              <tr><td>40%</td><td>Design and core frontend approval</td><td class="amount-cell">₦140,000</td></tr>
+              <tr><td>40%</td><td>Before deployment and handover</td><td class="amount-cell">₦140,000</td></tr>
+            </tbody>
+          </table>
+          <p style="margin: 5mm 0 9mm"><strong>Hosting:</strong> Vercel's free plan is used, so the initial amount due is ₦70,000.</p>
+          <h2>Project terms</h2>
+          <ul class="checklist">
+            <li>This proposal is valid for 14 days from 25 August 2026.</li>
+            <li>The fee includes two structured revision rounds during the design stage.</li>
+            <li>Film Efiko will provide accurate copy, images, approvals and access required for delivery.</li>
+            <li>Ownership of the completed client-specific website transfers after full payment.</li>
+            <li>Gadar retains ownership of EasyHeadless and other reusable tools and frameworks.</li>
+            <li>Support covers verified launch defects for 60 days; new features are quoted separately.</li>
+          </ul>
+        </div>
+        <div>
+          <div class="green-panel">
+            <h2>Next steps</h2>
+            <p>1. Approve this proposal.<br>2. Pay the initial invoice.<br>3. Schedule the kickoff session.<br>4. Share content, brand assets and provider access.</p>
+          </div>
+          <div class="contact-card">
+            <h3 class="green">Gadar Global Solutions</h3>
+            <p>gadarsolutions.com<br>hello@gadarsolutions.com<br>08134144985</p>
+          </div>
+        </div>
+      </div>
+      <footer class="page-footer"><span>Gadar Global Solutions</span><span>10</span></footer>
+    </section>
+
+    <section class="page">
+      <div class="page-header">
+        <div class="brand"><img src="assets/gadar-logo.svg" alt="Gadar Global Solutions"><strong>Gadar</strong></div>
+        <span>Proforma Invoice</span>
+      </div>
+      <h1 class="invoice-title">Invoice</h1>
+      <div class="invoice-meta"><strong>GGS-FE-2026-001</strong><br>Date: 25 August 2026<br>Due: On receipt</div>
+      <div class="invoice-parties">
+        <div class="invoice-party"><div class="label">Billed to</div><p><strong>Film Efiko</strong></p></div>
+        <div class="invoice-party"><div class="label">From</div><p><strong>Gadar Global Solutions</strong><br>hello@gadarsolutions.com<br>08134144985</p></div>
+      </div>
+      <table>
+        <thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Website development commencement deposit</strong><br><span class="muted">20% of the ₦350,000 custom website design and development fee</span></td><td class="amount-cell">₦70,000</td></tr>
+          <tr><td><strong>Vercel deployment and hosting</strong><br><span class="muted">Deployment on the Vercel free plan</span></td><td class="amount-cell">₦0</td></tr>
+        </tbody>
+      </table>
+      <div class="totals">
+        <div class="summary-row"><span>Subtotal</span><strong>₦70,000</strong></div>
+        <div class="summary-row"><span>Tax</span><strong>₦0</strong></div>
+        <div class="total-due"><span>Amount due</span><strong>₦70,000</strong></div>
+      </div>
+      <div class="invoice-bottom">
+        <div class="text-block"><h3>Payment information</h3><p>Account name: <strong>Gadar Global Solutions</strong><br>Account number: <strong>0110062500</strong><br>Bank: <strong>Prospa Capital MFB</strong></p></div>
+        <div class="text-block"><h3>Notes</h3><p>Please use <strong>Film Efiko</strong> as the payment reference and share proof of payment. The remaining project balance after this invoice is <strong>₦280,000</strong>, payable according to the proposal schedule.</p></div>
+      </div>
+      <footer class="page-footer"><span>Gadarsolutions.com</span><span>11</span></footer>
+    </section>
+  </main>
+</body>
+</html>

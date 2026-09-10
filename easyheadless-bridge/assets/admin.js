@@ -6,6 +6,20 @@
   }
 
   $(function () {
+    $('#eh-copy-api-key').on('click', async function () {
+      var input = document.getElementById('eh-new-api-key');
+      if (!input) return;
+      try {
+        if (!navigator.clipboard || !window.isSecureContext) throw new Error('Clipboard unavailable');
+        await navigator.clipboard.writeText(input.value);
+        $('#eh-copy-status').text('Copied. Store the key securely.');
+      } catch (_) {
+        input.focus();
+        input.select();
+        $('#eh-copy-status').text('Press Ctrl+C or Command+C to copy the selected key.');
+      }
+    });
+
     var $portfolioForm = $('#eh-portfolio-form');
     var $bulkBar = $('.eh-bulk-bar');
     var $inspector = $('#eh-inspector');

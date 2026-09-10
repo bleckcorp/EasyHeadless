@@ -35,6 +35,19 @@ final class EasyHeadless_Admin
             30
         );
 
+        // A custom post type (such as Issues) may already own a submenu.
+        // WordPress then skips its automatic parent link; explicitly prepend
+        // the overview so the top-level menu still opens the dashboard.
+        add_submenu_page(
+            EasyHeadless_Plugin::ADMIN_MENU_SLUG,
+            'EasyHeadless Dashboard',
+            'Dashboard',
+            'edit_posts',
+            EasyHeadless_Plugin::ADMIN_MENU_SLUG,
+            array(__CLASS__, 'render_overview'),
+            0
+        );
+
         self::submenu('Site & URLs', 'Site & URLs', self::PAGE_PREFIX . 'site', 'render_site');
         self::submenu('Navigation', 'Navigation', self::PAGE_PREFIX . 'navigation', 'render_navigation', 'edit_theme_options');
         self::submenu('Content Library', 'Content Library', self::PAGE_PREFIX . 'content', 'render_content', 'edit_posts');
@@ -447,10 +460,51 @@ final class EasyHeadless_Admin
                 <div class="eh-info"><strong><?php echo esc_html($status['message']); ?></strong><br>Installed version: <?php echo esc_html($status['currentVersion']); ?></div>
                 <div class="eh-form-actions"><button class="button button-primary" type="submit">Save updater configuration</button></div>
             </form>
-            <section class="eh-card"><div class="eh-section-heading"><div><h2>API credentials</h2><p>Credentials are intentionally separated from public content.</p></div></div><dl class="eh-definition-list"><div><dt>MCP key</dt><dd>Ending <?php echo esc_html(get_option(EasyHeadless_Plugin::OPTION_API_KEY_HINT, 'not generated')); ?></dd></div><div><dt>Preview token</dt><dd><code><?php echo esc_html(get_option(EasyHeadless_Plugin::OPTION_PREVIEW_TOKEN, '')); ?></code></dd></div><div><dt>REST base</dt><dd><code><?php echo esc_html(rest_url('easyheadless/v1')); ?></code></dd></div></dl></section>
+            <?php self::render_credentials(); ?>
         </div>
         <?php
         self::close_page();
+    }
+
+    public static function render_credentials()
+    {
+        self::guard();
+        $new_key = '';
+        $has_key = (bool) get_option(EasyHeadless_Plugin::OPTION_API_KEY_HASH, '');
+        if ('POST' === ($_SERVER['REQUEST_METHOD'] ?? '') && isset($_POST['easyheadless_regenerate_api_key'])) {
+            check_admin_referer('easyheadless_regenerate_api_key');
+            if ($has_key && '1' !== ($_POST['confirm_rotation'] ?? '')) {
+                wp_die('Confirm that existing agents will need the new key.', 400);
+            }
+            $new_key = EasyHeadless_Plugin::instance()->regenerate_api_key();
+            $has_key = true;
+        }
+        ?>
+        <section class="eh-card eh-form">
+            <div class="eh-section-heading"><div><h2>Agent API credentials</h2><p>Connect an AI agent or the EasyHeadless MCP server to this site.</p></div></div>
+            <?php if ($new_key) : ?>
+                <div class="notice notice-success inline"><p><strong>New API key generated.</strong> Copy it now. It is shown only in this response; a normal page reload will not retrieve it.</p></div>
+                <label for="eh-new-api-key">New MCP API key</label>
+                <input id="eh-new-api-key" type="text" class="large-text code" readonly autocomplete="off" spellcheck="false" value="<?php echo esc_attr($new_key); ?>">
+                <p><button type="button" class="button" id="eh-copy-api-key">Copy key</button> <span id="eh-copy-status" role="status" aria-live="polite"></span></p>
+                <p><a href="<?php echo esc_url(admin_url('admin.php?page=easyheadless-integrations')); ?>">Done — hide the key</a></p>
+            <?php endif; ?>
+            <dl class="eh-definition-list">
+                <div><dt>MCP key</dt><dd><?php echo $has_key ? 'Ending ' . esc_html(get_option(EasyHeadless_Plugin::OPTION_API_KEY_HINT, '')) : 'Not generated'; ?></dd></div>
+                <div><dt>REST base</dt><dd><code><?php echo esc_html(rest_url('easyheadless/v1')); ?></code></dd></div>
+                <div><dt>Preview token</dt><dd><code><?php echo esc_html(get_option(EasyHeadless_Plugin::OPTION_PREVIEW_TOKEN, '')); ?></code></dd></div>
+            </dl>
+            <p>The MCP key authorizes agent API operations. Keep it in your agent’s server-side configuration, never in public frontend code. The preview token is separate.</p>
+            <p>Only a hash of the MCP key is stored. If you no longer have the original, generate a replacement.</p>
+            <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=easyheadless-integrations')); ?>">
+                <?php wp_nonce_field('easyheadless_regenerate_api_key'); ?>
+                <?php if ($has_key) : ?>
+                    <label><input type="checkbox" name="confirm_rotation" value="1" required> I understand the current key will stop working and connected agents will need the replacement.</label>
+                <?php endif; ?>
+                <p><button class="button button-primary" type="submit" name="easyheadless_regenerate_api_key" value="1"><?php echo $has_key ? 'Regenerate agent key' : 'Generate agent key'; ?></button></p>
+            </form>
+        </section>
+        <?php
     }
 
     public static function save_modules()
