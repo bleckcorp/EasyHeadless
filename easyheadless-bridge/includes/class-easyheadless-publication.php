@@ -23,11 +23,12 @@ final class EasyHeadless_Publication
     const META_PRESENTATION_STYLE = '_easyheadless_presentation_style';
     const META_ISSUE_ID = '_easyheadless_issue_id';
     const TERM_META_PRESENTATION_STYLE = '_easyheadless_presentation_style';
+    const TERM_META_ARCHIVE_MODE = '_easyheadless_archive_mode';
     const ISSUE_META_DATE = '_easyheadless_issue_date';
     const ISSUE_META_VOLUME = '_easyheadless_issue_volume';
     const ISSUE_META_FEATURED_STORY = '_easyheadless_featured_story';
     const ISSUE_META_RELATED_STORIES = '_easyheadless_related_stories';
-    const SCHEMA_VERSION = '0.6.3';
+    const SCHEMA_VERSION = '0.6.6';
     const ISSUE_TYPE = 'eh_issue';
     const SESSION_DAYS = 30;
     const CODE_MINUTES = 10;
@@ -109,10 +110,13 @@ final class EasyHeadless_Publication
 
     public static function maybe_upgrade()
     {
-        if (version_compare((string) get_option(self::OPTION_SCHEMA_VERSION, '0'), self::SCHEMA_VERSION, '<')) {
+        $current_schema = (string) get_option(self::OPTION_SCHEMA_VERSION, '0');
+        if (version_compare($current_schema, self::SCHEMA_VERSION, '<')) {
             self::migrate_curation();
-            // Apply the new default once; later explicit opt-outs remain respected.
-            update_option(self::OPTION_ENABLED, '1');
+            // Apply the original publication default once; later explicit opt-outs remain respected.
+            if (version_compare($current_schema, '0.6.3', '<')) {
+                update_option(self::OPTION_ENABLED, '1');
+            }
             update_option(self::OPTION_SCHEMA_VERSION, self::SCHEMA_VERSION, false);
         }
     }
@@ -139,12 +143,21 @@ final class EasyHeadless_Publication
 
     private static function default_curation()
     {
-        $sections = array('hot-hot-latest', 'hot-hot', 'columns', 'big-interview', 'ideas', 'festivals', 'reviews', 'tv-documentary', 'spotlight', 'biz', 'features', 'the-cover');
         $curation = array('hero_id' => 0, 'support_ids' => array());
-        foreach ($sections as $section) {
-            $curation[$section] = array('category_id' => 0, 'post_ids' => array());
+        $position = 0;
+        foreach (self::section_definitions() as $key => $definition) {
+            $curation[$key] = array(
+                'title' => $definition['title'],
+                'category_id' => 0,
+                'post_ids' => array(),
+                'source' => 'hot-hot' === $key ? 'popular' : 'latest',
+                'layout' => $definition['layout'],
+                'count' => $definition['count'],
+                'enabled' => '1',
+                'order' => $position++,
+                'href' => '',
+            );
         }
-        $curation['spotlight']['title'] = 'Seasonal Spotlight';
         $curation['spotlight']['start_date'] = '';
         $curation['spotlight']['end_date'] = '';
         return $curation;
@@ -156,15 +169,23 @@ final class EasyHeadless_Publication
         if (!is_array($stored)) {
             $stored = array();
         }
-        $migrated = wp_parse_args($stored, self::default_curation());
+        $defaults = self::default_curation();
+        $migrated = wp_parse_args($stored, $defaults);
         if (isset($stored['archive']) && !isset($stored['festivals'])) {
             $migrated['ideas'] = $stored['archive'];
-            $migrated['festivals'] = isset($stored['ideas']) ? $stored['ideas'] : self::default_curation()['festivals'];
+            $migrated['festivals'] = isset($stored['ideas']) ? $stored['ideas'] : $defaults['festivals'];
         }
         if (isset($stored['cover']) && !isset($stored['biz'])) {
             $migrated['biz'] = $stored['cover'];
         }
         unset($migrated['archive'], $migrated['cover']);
+        foreach (self::section_definitions() as $key => $definition) {
+            $legacy = isset($migrated[$key]) && is_array($migrated[$key]) ? $migrated[$key] : array();
+            $migrated[$key] = wp_parse_args($legacy, $defaults[$key]);
+            if (!array_key_exists('source', $legacy)) {
+                $migrated[$key]['source'] = !empty($migrated[$key]['category_id']) ? 'category' : ('hot-hot' === $key ? 'popular' : 'latest');
+            }
+        }
         update_option(self::OPTION_CURATION, $migrated, false);
     }
 
@@ -180,9 +201,11 @@ final class EasyHeadless_Publication
             'show_in_menu' => 'easyheadless',
             'menu_icon' => 'dashicons-book-alt',
             'supports' => array('title', 'editor', 'excerpt', 'thumbnail', 'custom-fields'),
+            'taxonomies' => array('category'),
             'has_archive' => false,
             'rewrite' => array('slug' => 'issues'),
         ));
+        register_taxonomy_for_object_type('category', self::ISSUE_TYPE);
         register_post_meta(self::ISSUE_TYPE, '_easyheadless_issue_date', array('type' => 'string', 'single' => true, 'show_in_rest' => true, 'sanitize_callback' => 'sanitize_text_field', 'auth_callback' => function () { return current_user_can('edit_posts'); }));
         register_post_meta(self::ISSUE_TYPE, self::ISSUE_META_VOLUME, array('type' => 'string', 'single' => true, 'show_in_rest' => true, 'sanitize_callback' => 'sanitize_text_field', 'auth_callback' => function () { return current_user_can('edit_posts'); }));
         register_post_meta(self::ISSUE_TYPE, self::ISSUE_META_FEATURED_STORY, array('type' => 'integer', 'single' => true, 'show_in_rest' => true, 'sanitize_callback' => 'absint', 'auth_callback' => function () { return current_user_can('edit_posts'); }));
@@ -232,16 +255,27 @@ final class EasyHeadless_Publication
         <div class="form-field"><label for="easyheadless-presentation-style">Presentation style</label>
             <select id="easyheadless-presentation-style" name="easyheadless_presentation_style"><option value="nation">Nation / standard</option><option value="new-yorker">New Yorker inspired</option></select>
             <p>Controls the category page and the default presentation of stories in this category.</p></div>
+        <div class="form-field"><label for="easyheadless-archive-mode">Archive behaviour</label>
+            <select id="easyheadless-archive-mode" name="easyheadless_archive_mode"><option value="stories">List stories</option><option value="issues">List covers / issues</option></select>
+            <p>Issue archives list cover records; opening a cover shows the stories assigned to it.</p></div>
+        <div class="form-field"><label><input type="checkbox" name="easyheadless_migrate_category_posts" value="1"> Convert existing posts in this category into issues</label>
+            <p>Use once when moving a legacy cover category. Titles, slugs, content, dates and featured images are preserved.</p></div>
         <?php
     }
 
     public static function render_category_style_edit($term)
     {
         $style = self::sanitize_presentation_style(get_term_meta($term->term_id, self::TERM_META_PRESENTATION_STYLE, true), 'nation');
+        $archive_mode = self::sanitize_archive_mode(get_term_meta($term->term_id, self::TERM_META_ARCHIVE_MODE, true));
         ?>
         <tr class="form-field"><th scope="row"><label for="easyheadless-presentation-style">Presentation style</label></th><td>
             <select id="easyheadless-presentation-style" name="easyheadless_presentation_style"><option value="nation" <?php selected($style, 'nation'); ?>>Nation / standard</option><option value="new-yorker" <?php selected($style, 'new-yorker'); ?>>New Yorker inspired</option></select>
             <p class="description">Controls the category page and the default presentation of stories in this category.</p></td></tr>
+        <tr class="form-field"><th scope="row"><label for="easyheadless-archive-mode">Archive behaviour</label></th><td>
+            <select id="easyheadless-archive-mode" name="easyheadless_archive_mode"><option value="stories" <?php selected($archive_mode, 'stories'); ?>>List stories</option><option value="issues" <?php selected($archive_mode, 'issues'); ?>>List covers / issues</option></select>
+            <p class="description">Issue archives list cover records; opening a cover shows the stories assigned to it.</p></td></tr>
+        <tr class="form-field"><th scope="row">Legacy posts</th><td><label><input type="checkbox" name="easyheadless_migrate_category_posts" value="1"> Convert existing posts in this category into issues</label>
+            <p class="description">Use once. Titles, slugs, content, dates and featured images are preserved. Take a database backup before converting published content.</p></td></tr>
         <?php
     }
 
@@ -252,11 +286,36 @@ final class EasyHeadless_Publication
         }
         $value = isset($_POST['easyheadless_presentation_style']) ? sanitize_key(wp_unslash($_POST['easyheadless_presentation_style'])) : 'nation';
         update_term_meta($term_id, self::TERM_META_PRESENTATION_STYLE, self::sanitize_presentation_style($value, 'nation'));
+        $archive_mode = isset($_POST['easyheadless_archive_mode']) ? sanitize_key(wp_unslash($_POST['easyheadless_archive_mode'])) : 'stories';
+        $archive_mode = self::sanitize_archive_mode($archive_mode);
+        update_term_meta($term_id, self::TERM_META_ARCHIVE_MODE, $archive_mode);
+        if ('issues' === $archive_mode && !empty($_POST['easyheadless_migrate_category_posts'])) {
+            self::migrate_category_posts_to_issues($term_id);
+        }
     }
 
     private static function sanitize_presentation_style($value, $fallback = 'nation')
     {
         return in_array($value, array('inherit', 'nation', 'new-yorker'), true) ? $value : $fallback;
+    }
+
+    private static function sanitize_archive_mode($value)
+    {
+        return 'issues' === $value ? 'issues' : 'stories';
+    }
+
+    private static function migrate_category_posts_to_issues($term_id)
+    {
+        $post_ids = get_posts(array(
+            'post_type' => 'post',
+            'post_status' => array('publish', 'draft', 'future', 'private'),
+            'numberposts' => -1,
+            'fields' => 'ids',
+            'category' => absint($term_id),
+        ));
+        foreach ($post_ids as $post_id) {
+            wp_update_post(array('ID' => absint($post_id), 'post_type' => self::ISSUE_TYPE));
+        }
     }
 
     public static function register_settings()
@@ -300,13 +359,22 @@ final class EasyHeadless_Publication
         $output = self::default_curation();
         $output['hero_id'] = absint(isset($input['hero_id']) ? $input['hero_id'] : 0);
         $output['support_ids'] = self::sanitize_ids(isset($input['support_ids']) ? $input['support_ids'] : array());
-        foreach (array('hot-hot-latest', 'hot-hot', 'columns', 'big-interview', 'ideas', 'festivals', 'reviews', 'tv-documentary', 'spotlight', 'biz', 'features', 'the-cover') as $key) {
+        foreach (self::section_definitions() as $key => $definition) {
             $section = isset($input[$key]) ? (array) $input[$key] : array();
+            $source_default = !empty($section['category_id']) ? 'category' : $output[$key]['source'];
+            $source = sanitize_key(isset($section['source']) ? $section['source'] : $source_default);
+            $layout = sanitize_key(isset($section['layout']) ? $section['layout'] : $definition['layout']);
+            $output[$key]['title'] = sanitize_text_field(isset($section['title']) ? $section['title'] : $definition['title']);
             $output[$key]['category_id'] = absint(isset($section['category_id']) ? $section['category_id'] : 0);
             $output[$key]['post_ids'] = self::sanitize_ids(isset($section['post_ids']) ? $section['post_ids'] : array());
+            $output[$key]['source'] = in_array($source, array('latest', 'popular', 'category'), true) ? $source : $output[$key]['source'];
+            $output[$key]['layout'] = in_array($layout, array('rail', 'lead', 'feature', 'portrait', 'editorial-rail', 'portrait-rail'), true) ? $layout : $definition['layout'];
+            $output[$key]['count'] = min(12, max(1, absint(isset($section['count']) ? $section['count'] : $definition['count'])));
+            $output[$key]['enabled'] = array_key_exists('enabled', $section) ? (empty($section['enabled']) ? '0' : '1') : $output[$key]['enabled'];
+            $output[$key]['order'] = min(100, absint(isset($section['order']) ? $section['order'] : $output[$key]['order']));
+            $output[$key]['href'] = esc_url_raw(isset($section['href']) ? $section['href'] : '');
         }
         $spotlight = isset($input['spotlight']) ? (array) $input['spotlight'] : array();
-        $output['spotlight']['title'] = sanitize_text_field(isset($spotlight['title']) ? $spotlight['title'] : 'Seasonal Spotlight');
         $output['spotlight']['start_date'] = sanitize_text_field(isset($spotlight['start_date']) ? $spotlight['start_date'] : '');
         $output['spotlight']['end_date'] = sanitize_text_field(isset($spotlight['end_date']) ? $spotlight['end_date'] : '');
         return $output;
@@ -391,7 +459,7 @@ final class EasyHeadless_Publication
     {
         add_submenu_page(EasyHeadless_Plugin::ADMIN_MENU_SLUG, 'Publication', 'Publication', 'manage_options', 'easyheadless-publication', array(__CLASS__, 'render_settings_page'));
         if (self::enabled()) {
-            add_submenu_page(EasyHeadless_Plugin::ADMIN_MENU_SLUG, 'Homepage Curation', 'Homepage Curation', 'edit_posts', 'easyheadless-publication-curation', array(__CLASS__, 'render_curation_page'));
+            add_submenu_page(EasyHeadless_Plugin::ADMIN_MENU_SLUG, 'Homepage Sections', 'Homepage Sections', 'edit_posts', 'easyheadless-publication-curation', array(__CLASS__, 'render_curation_page'));
             add_submenu_page(EasyHeadless_Plugin::ADMIN_MENU_SLUG, 'Readers & Contacts', 'Readers & Contacts', 'manage_options', 'easyheadless-publication-contacts', array(__CLASS__, 'render_contacts_page'));
         }
     }
@@ -437,14 +505,20 @@ final class EasyHeadless_Publication
         $categories = get_categories(array('hide_empty' => false));
         $sections = self::section_definitions();
         ?>
-        <div class="wrap"><h1>Homepage Curation</h1><p>Choose exact stories where needed, or choose a category and let the latest stories fill the section automatically.</p>
+        <div class="wrap"><h1>Homepage Sections</h1><p>Control the name, content source, presentation, order and visibility of each homepage section. Selected stories always appear first and the chosen source fills remaining positions.</p>
         <form method="post" action="options.php"><?php settings_fields('easyheadless_publication_curation'); ?>
         <table class="form-table" role="presentation"><tr><th scope="row">Hero story</th><td><select name="<?php echo esc_attr(self::OPTION_CURATION); ?>[hero_id]"><option value="0">Latest story automatically</option><?php foreach ($posts as $post) : ?><option value="<?php echo esc_attr($post->ID); ?>" <?php selected($curation['hero_id'], $post->ID); ?>><?php echo esc_html($post->post_title); ?></option><?php endforeach; ?></select></td></tr>
         <tr><th scope="row">Supporting stories</th><td><input class="regular-text" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[support_ids]" value="<?php echo esc_attr(implode(', ', $curation['support_ids'])); ?>"><p class="description">Up to three post IDs, comma separated. Missing positions use the latest stories.</p></td></tr></table>
-        <?php foreach ($sections as $key => $definition) : $value = isset($curation[$key]) ? $curation[$key] : array(); ?>
-            <h2><?php echo esc_html($definition['title']); ?> <small>(<?php echo esc_html($definition['count']); ?> stories)</small></h2><table class="form-table" role="presentation">
-            <?php if ('spotlight' === $key) : ?><tr><th>Displayed title</th><td><input class="regular-text" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[spotlight][title]" value="<?php echo esc_attr($value['title']); ?>"></td></tr><tr><th>Active dates</th><td><input type="date" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[spotlight][start_date]" value="<?php echo esc_attr($value['start_date']); ?>"> to <input type="date" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[spotlight][end_date]" value="<?php echo esc_attr($value['end_date']); ?>"></td></tr><?php endif; ?>
-            <tr><th>Automatic category</th><td><select name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][category_id]"><option value="0">Latest stories</option><?php foreach ($categories as $category) : ?><option value="<?php echo esc_attr($category->term_id); ?>" <?php selected(isset($value['category_id']) ? $value['category_id'] : 0, $category->term_id); ?>><?php echo esc_html($category->name); ?></option><?php endforeach; ?></select></td></tr>
+        <?php foreach ($sections as $key => $definition) : $value = wp_parse_args(isset($curation[$key]) ? $curation[$key] : array(), self::default_curation()[$key]); ?>
+            <h2><?php echo esc_html($definition['title']); ?></h2><table class="form-table" role="presentation">
+            <tr><th>Display</th><td><input type="hidden" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][enabled]" value="0"><label><input type="checkbox" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][enabled]" value="1" <?php checked('1', $value['enabled']); ?>> Show this section</label></td></tr>
+            <tr><th>Displayed title</th><td><input class="regular-text" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][title]" value="<?php echo esc_attr($value['title']); ?>"><p class="description">Leave blank to use the selected category name, or the default section name when no category is selected.</p></td></tr>
+            <tr><th>Content source</th><td><select name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][source]"><option value="latest" <?php selected($value['source'], 'latest'); ?>>Latest stories</option><option value="popular" <?php selected($value['source'], 'popular'); ?>>Popular stories</option><option value="category" <?php selected($value['source'], 'category'); ?>>Selected category</option></select></td></tr>
+            <tr><th>WordPress category</th><td><select name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][category_id]"><option value="0">Choose a category</option><?php foreach ($categories as $category) : ?><option value="<?php echo esc_attr($category->term_id); ?>" <?php selected(isset($value['category_id']) ? $value['category_id'] : 0, $category->term_id); ?>><?php echo esc_html($category->name); ?></option><?php endforeach; ?></select><p class="description">Used when Content source is “Selected category” and for the automatic section link.</p></td></tr>
+            <tr><th>Presentation style</th><td><select name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][layout]"><option value="rail" <?php selected($value['layout'], 'rail'); ?>>Card row</option><option value="lead" <?php selected($value['layout'], 'lead'); ?>>Lead story + list</option><option value="feature" <?php selected($value['layout'], 'feature'); ?>>Feature grid</option><option value="portrait" <?php selected($value['layout'], 'portrait'); ?>>Portrait cards</option><option value="editorial-rail" <?php selected($value['layout'], 'editorial-rail'); ?>>Editorial slider</option><option value="portrait-rail" <?php selected($value['layout'], 'portrait-rail'); ?>>Portrait slider</option></select></td></tr>
+            <tr><th>Stories and position</th><td><label>Number of stories <input type="number" min="1" max="12" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][count]" value="<?php echo esc_attr($value['count']); ?>" style="width:70px"></label>&nbsp;&nbsp;<label>Homepage position <input type="number" min="0" max="100" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][order]" value="<?php echo esc_attr($value['order']); ?>" style="width:70px"></label></td></tr>
+            <tr><th>Custom link</th><td><input class="regular-text" type="text" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][href]" value="<?php echo esc_attr($value['href']); ?>" placeholder="/a-page or https://example.com"><p class="description">Optional. Leave blank to link to the selected category or the section’s normal archive.</p></td></tr>
+            <?php if ('spotlight' === $key) : ?><tr><th>Active dates</th><td><input type="date" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[spotlight][start_date]" value="<?php echo esc_attr($value['start_date']); ?>"> to <input type="date" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[spotlight][end_date]" value="<?php echo esc_attr($value['end_date']); ?>"></td></tr><?php endif; ?>
             <tr><th>Selected stories</th><td><input class="regular-text" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][post_ids]" value="<?php echo esc_attr(implode(', ', isset($value['post_ids']) ? $value['post_ids'] : array())); ?>"><p class="description">Post IDs, comma separated. Selected stories come first; automatic stories fill the rest.</p></td></tr></table>
         <?php endforeach; ?><?php submit_button('Save homepage curation'); ?></form></div>
         <?php
@@ -457,14 +531,14 @@ final class EasyHeadless_Publication
             'hot-hot' => array('title' => 'Hot-Hot', 'count' => 6, 'layout' => 'rail'),
             'columns' => array('title' => 'Columns', 'count' => 3, 'layout' => 'rail'),
             'big-interview' => array('title' => 'Big Interview', 'count' => 3, 'layout' => 'feature'),
-            'ideas' => array('title' => 'Ideas', 'count' => 5, 'layout' => 'feature'),
+            'ideas' => array('title' => 'Ideas', 'count' => 5, 'layout' => 'editorial-rail'),
             'festivals' => array('title' => 'Festivals', 'count' => 5, 'layout' => 'lead'),
             'reviews' => array('title' => 'Reviews', 'count' => 4, 'layout' => 'rail'),
             'tv-documentary' => array('title' => 'TV & Documentary', 'count' => 4, 'layout' => 'rail'),
             'spotlight' => array('title' => 'Seasonal Spotlight', 'count' => 3, 'layout' => 'feature'),
             'biz' => array('title' => 'Biz', 'count' => 5, 'layout' => 'lead'),
             'features' => array('title' => 'Features', 'count' => 4, 'layout' => 'rail'),
-            'the-cover' => array('title' => 'The Cover', 'count' => 5, 'layout' => 'portrait'),
+            'the-cover' => array('title' => 'The Cover', 'count' => 5, 'layout' => 'portrait-rail'),
         );
     }
 
@@ -602,15 +676,45 @@ final class EasyHeadless_Publication
         $used[] = $hero['id'];
         $supporting = self::curated_stories($curation['support_ids'], 0, 3, $used);
         $sections = array();
+        $configured = array();
         foreach (self::section_definitions() as $key => $definition) {
-            $value = isset($curation[$key]) ? $curation[$key] : array();
-            $title = ('spotlight' === $key && !empty($value['title'])) ? $value['title'] : $definition['title'];
-            if ('spotlight' === $key && !self::spotlight_active($value)) {
+            $stored_value = isset($curation[$key]) && is_array($curation[$key]) ? $curation[$key] : array();
+            $value = wp_parse_args($stored_value, self::default_curation()[$key]);
+            if (!array_key_exists('source', $stored_value) && !empty($value['category_id'])) {
+                $value['source'] = 'category';
+            }
+            $configured[] = array('key' => $key, 'definition' => $definition, 'value' => $value);
+        }
+        usort($configured, function ($left, $right) {
+            return absint($left['value']['order']) <=> absint($right['value']['order']);
+        });
+        foreach ($configured as $configured_section) {
+            $key = $configured_section['key'];
+            $definition = $configured_section['definition'];
+            $value = $configured_section['value'];
+            if ('1' !== (string) $value['enabled'] || ('spotlight' === $key && !self::spotlight_active($value))) {
                 continue;
             }
             $category_id = isset($value['category_id']) ? absint($value['category_id']) : 0;
-            $stories = self::curated_stories(isset($value['post_ids']) ? $value['post_ids'] : array(), $category_id, $definition['count'], $used, 'hot-hot' === $key);
-            $sections[] = array('key' => $key, 'title' => $title, 'stories' => $stories, 'layout' => $definition['layout'], 'href' => self::section_href($key, $category_id));
+            $source = in_array($value['source'], array('latest', 'popular', 'category'), true) ? $value['source'] : ('hot-hot' === $key ? 'popular' : 'latest');
+            $source_category_id = 'category' === $source ? $category_id : 0;
+            $category = $source_category_id ? get_term($source_category_id, 'category') : null;
+            $title = trim((string) $value['title']);
+            if ('' === $title) {
+                $title = $category && !is_wp_error($category) ? $category->name : $definition['title'];
+            }
+            $count = min(12, max(1, absint($value['count'])));
+            $layout = in_array($value['layout'], array('rail', 'lead', 'feature', 'portrait', 'editorial-rail', 'portrait-rail'), true) ? $value['layout'] : $definition['layout'];
+            $stories = self::curated_stories(isset($value['post_ids']) ? $value['post_ids'] : array(), $source_category_id, $count, $used, 'popular' === $source);
+            $sections[] = array(
+                'key' => $key,
+                'title' => $title,
+                'stories' => $stories,
+                'layout' => $layout,
+                'href' => self::section_href($key, $source_category_id, $value['href']),
+                'source' => $source,
+                'category' => $category && !is_wp_error($category) ? array('id' => $category->term_id, 'name' => $category->name, 'slug' => $category->slug) : null,
+            );
         }
         $settings = wp_parse_args(get_option(self::OPTION_SETTINGS, array()), self::default_settings());
         return rest_ensure_response(array('hero' => $hero, 'supporting' => $supporting, 'sections' => $sections, 'donationUrl' => $settings['donation_url'], 'social' => array('facebook' => $settings['social_facebook'], 'instagram' => $settings['social_instagram'], 'x' => $settings['social_x'])));
@@ -628,8 +732,11 @@ final class EasyHeadless_Publication
         return (empty($value['start_date']) || $today >= $value['start_date']) && (empty($value['end_date']) || $today <= $value['end_date']);
     }
 
-    private static function section_href($key, $category_id)
+    private static function section_href($key, $category_id, $custom_href = '')
     {
+        if ($custom_href) {
+            return esc_url_raw($custom_href);
+        }
         if ($category_id) {
             $term = get_term($category_id, 'category');
             if ($term && !is_wp_error($term)) {
@@ -809,8 +916,10 @@ final class EasyHeadless_Publication
             'name' => $term->name,
             'slug' => $term->slug,
             'count' => $term->count,
+            'parent' => (int) $term->parent,
             'description' => wp_kses_post(term_description($term->term_id, 'category')),
             'presentationStyle' => self::sanitize_presentation_style(get_term_meta($term->term_id, self::TERM_META_PRESENTATION_STYLE, true), 'nation'),
+            'archiveMode' => self::sanitize_archive_mode(get_term_meta($term->term_id, self::TERM_META_ARCHIVE_MODE, true)),
         );
     }
 
@@ -828,7 +937,12 @@ final class EasyHeadless_Publication
 
     public static function get_issues($request)
     {
-        $posts = get_posts(array('post_type' => self::ISSUE_TYPE, 'post_status' => 'publish', 'numberposts' => min(50, absint($request->get_param('per_page')) ?: 20), 'orderby' => 'date', 'order' => 'DESC'));
+        $args = array('post_type' => self::ISSUE_TYPE, 'post_status' => 'publish', 'numberposts' => min(50, absint($request->get_param('per_page')) ?: 20), 'orderby' => 'date', 'order' => 'DESC');
+        $category = sanitize_title($request->get_param('category'));
+        if ($category) {
+            $args['category_name'] = $category;
+        }
+        $posts = get_posts($args);
         return rest_ensure_response(array_values(array_map(array(__CLASS__, 'normalize_issue'), $posts)));
     }
 
@@ -841,6 +955,10 @@ final class EasyHeadless_Publication
     public static function normalize_issue($post)
     {
         $post = get_post($post);
+        $issue_categories = wp_get_post_terms($post->ID, 'category');
+        if (is_wp_error($issue_categories)) {
+            $issue_categories = array();
+        }
         $ids = self::sanitize_ids(get_post_meta($post->ID, self::ISSUE_META_RELATED_STORIES, true));
         $assigned = get_posts(array(
             'post_type' => 'post',
@@ -866,6 +984,9 @@ final class EasyHeadless_Publication
             'cover' => get_the_post_thumbnail_url($post, 'full') ?: '',
             'description' => apply_filters('the_content', $post->post_content),
             'href' => '/issues/' . $post->post_name,
+            'categories' => array_values(array_map(function ($term) {
+                return array('id' => $term->term_id, 'name' => $term->name, 'slug' => $term->slug);
+            }, $issue_categories)),
             'stories' => array_values(array_filter(array_map(array(__CLASS__, 'story_by_id'), array_unique($ids)))),
         );
     }

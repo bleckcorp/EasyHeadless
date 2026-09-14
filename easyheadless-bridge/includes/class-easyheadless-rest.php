@@ -426,7 +426,7 @@ final class EasyHeadless_REST
             $items[] = array(
                 'type' => 'post',
                 'slug' => $post->post_name,
-                'path' => '/insights/' . $post->post_name,
+                'path' => EasyHeadless_Modules::frontend_content_path($post),
                 'title' => html_entity_decode(get_the_title($post), ENT_QUOTES),
                 'modified' => get_post_modified_time(DATE_ATOM, true, $post),
             );

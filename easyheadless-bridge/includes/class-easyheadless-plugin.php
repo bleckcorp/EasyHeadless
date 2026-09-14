@@ -308,6 +308,7 @@ final class EasyHeadless_Plugin
                         'address' => 'Address',
                         'short_description' => 'Short description',
                         'navigation_location' => 'Menu location slug',
+                        'post_path_prefix' => 'Article path prefix',
                     );
                     foreach ($text_fields as $key => $label) :
                     ?>

@@ -23,6 +23,7 @@ Go to **Settings > EasyHeadless** and configure:
 
 - enabled modules
 - public frontend and LMS URLs
+- article path prefix (`stories` for Film Efiko; existing installations default to `insights`)
 - login, registration, dashboard, and course catalogue URLs
 - WordPress menu location
 - headless routing
@@ -33,6 +34,14 @@ Go to **Settings > EasyHeadless** and configure:
 - allowed frontend origins, one per line
 - preview token, generated automatically on activation
 - MCP API key, generated automatically on activation and regenerated manually when needed
+
+Publication is visible under **EasyHeadless → Modules** and in the **Content** group of the EasyHeadless sidebar. Enable it to expose Homepage Sections and Readers & Contacts. An older deployed plugin must be upgraded before these entries can appear.
+
+Editorial installations can additionally use **EasyHeadless → Homepage Sections** to configure each homepage section's displayed name, WordPress category or automatic feed, presentation style, story count, visibility, order, link, and selected story IDs.
+
+Set **EasyHeadless → Site & URLs → Article path prefix** to the frontend's post route. Film Efiko uses `stories`, producing canonical URLs such as `/stories/article-slug`. With headless routing enabled, legacy WordPress post permalinks permanently redirect to that route; Publication issues redirect to `/issues/{slug}`.
+
+For magazine-style collections, edit a WordPress category and set **Archive behaviour** to **List covers / issues**. Create each cover under **EasyHeadless → Issues**, assign it to that category, add its cover image, date and volume label, then select that issue from each article's **Cover / issue** field. The public category lists issues and each issue automatically lists its assigned articles. A guarded one-time checkbox on the category screen can convert legacy posts in that category to Issue records while preserving their IDs and content; take a database backup first.
 
 Allowed origins are used for CORS. Leave the field empty only for local experiments; production sites should list exact frontend origins.
 

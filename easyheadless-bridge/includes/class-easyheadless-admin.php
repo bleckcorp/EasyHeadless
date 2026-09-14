@@ -231,6 +231,7 @@ final class EasyHeadless_Admin
         $health = EasyHeadless_Modules::capabilities($forms);
         $definitions = array(
             'core' => array('Core', 'Required foundation, normalized API, routing, and site settings.', 'dashicons-admin-generic'),
+            'publication' => array('Publication', 'Editorial curation, reader access, presentation styles, issues, and homepage sections.', 'dashicons-media-document'),
             'portfolio' => array('Portfolio', 'Create curated media galleries from WordPress attachments.', 'dashicons-format-gallery'),
             'church' => array('Church', 'Add sermons, events, ministries, leaders, services, and policies.', 'dashicons-admin-home'),
             'tutor' => array('Tutor LMS', 'Expose safe public course summaries from Tutor LMS.', 'dashicons-welcome-learn-more'),
@@ -246,12 +247,15 @@ final class EasyHeadless_Admin
                 <div class="eh-module-table">
                     <div class="eh-table-head"><span>Module</span><span>Purpose</span><span>Dependency status</span><span>State</span></div>
                     <?php foreach ($definitions as $key => $definition) : ?>
-                        <?php $status = isset($health[$key]) ? $health[$key] : array('status' => 'ready', 'message' => ''); ?>
+                        <?php
+                        $status = isset($health[$key]) ? $health[$key] : array('status' => 'ready', 'message' => '');
+                        $is_enabled = 'publication' === $key ? EasyHeadless_Publication::enabled() : !empty($modules[$key]);
+                        ?>
                         <label class="eh-module-row <?php echo 'core' === $key ? 'is-locked' : ''; ?>">
                             <strong><span class="eh-icon-box dashicons <?php echo esc_attr($definition[2]); ?>" aria-hidden="true"></span><?php echo esc_html($definition[0]); ?></strong>
                             <span><?php echo esc_html($definition[1]); ?></span>
                             <span class="eh-dependency eh-status-<?php echo esc_attr($status['status']); ?>"><span class="eh-status-dot"></span><span><strong><?php echo esc_html('ready' === $status['status'] ? 'All dependencies met' : ucfirst($status['status'])); ?></strong><small><?php echo esc_html($status['message']); ?></small></span></span>
-                            <span><?php if ('core' === $key) : ?><span class="eh-locked-state"><span class="dashicons dashicons-lock" aria-hidden="true"></span>Always active</span><input type="hidden" name="modules[core]" value="1"><?php else : ?><span class="eh-switch"><input type="checkbox" name="modules[<?php echo esc_attr($key); ?>]" value="1" <?php checked(!empty($modules[$key])); ?>><i aria-hidden="true"></i><span class="screen-reader-text">Enable <?php echo esc_html($definition[0]); ?></span></span><?php endif; ?></span>
+                            <span><?php if ('core' === $key) : ?><span class="eh-locked-state"><span class="dashicons dashicons-lock" aria-hidden="true"></span>Always active</span><input type="hidden" name="modules[core]" value="1"><?php else : ?><span class="eh-switch"><input type="checkbox" name="modules[<?php echo esc_attr($key); ?>]" value="1" <?php checked($is_enabled); ?>><i aria-hidden="true"></i><span class="screen-reader-text">Enable <?php echo esc_html($definition[0]); ?></span></span><?php endif; ?></span>
                         </label>
                     <?php endforeach; ?>
                 </div>
@@ -284,6 +288,7 @@ final class EasyHeadless_Admin
                 <?php foreach (array('frontend_url' => 'Public frontend URL', 'lms_url' => 'LMS URL', 'login_url' => 'Login URL', 'registration_url' => 'Registration URL', 'dashboard_url' => 'Dashboard URL', 'courses_url' => 'Course catalogue URL', 'revalidation_url' => 'Revalidation webhook URL') as $key => $label) : ?>
                     <label><span><?php echo esc_html($label); ?></span><input type="url" name="profile[<?php echo esc_attr($key); ?>]" value="<?php echo esc_attr(isset($profile[$key]) ? $profile[$key] : ''); ?>"></label>
                 <?php endforeach; ?>
+                <label><span>Article path prefix</span><input type="text" name="profile[post_path_prefix]" value="<?php echo esc_attr($profile['post_path_prefix']); ?>" placeholder="stories"><small>Public path segment for posts, for example <code>stories</code> produces <code>/stories/article-slug</code>.</small></label>
                 <label><span>Revalidation secret</span><input type="password" name="profile[revalidation_secret]" value="<?php echo esc_attr($profile['revalidation_secret']); ?>" autocomplete="new-password"></label>
             </div>
             <label class="eh-check"><input type="checkbox" name="profile[headless_routing]" value="1" <?php checked(!empty($profile['headless_routing'])); ?>><span><strong>Enable headless routing</strong><small>Redirect public WordPress pages and posts while preserving LMS, checkout, admin, REST, and authentication routes.</small></span></label>
@@ -511,6 +516,8 @@ final class EasyHeadless_Admin
     {
         self::authorize();
         $modules = isset($_POST['modules']) ? wp_unslash($_POST['modules']) : array();
+        $modules = is_array($modules) ? $modules : array();
+        update_option(EasyHeadless_Publication::OPTION_ENABLED, !empty($modules['publication']) ? '1' : '0');
         update_option(EasyHeadless_Modules::OPTION_ENABLED_MODULES, EasyHeadless_Modules::sanitize_enabled_modules($modules));
         self::redirect(self::PAGE_PREFIX . 'modules', 'saved');
     }
@@ -637,7 +644,8 @@ final class EasyHeadless_Admin
                         <div class="eh-nav-group">
                             <span class="eh-nav-label"><?php echo esc_html($group); ?></span>
                             <?php foreach ($items as $key => $item) : ?>
-                                <a class="<?php echo $active === $key ? 'is-active' : ''; ?>" href="<?php echo esc_url(admin_url('admin.php?page=' . $item['slug'])); ?>"><span class="dashicons <?php echo esc_attr($item['icon']); ?>" aria-hidden="true"></span><span><?php echo esc_html($item['label']); ?></span></a>
+                                <?php $item_url = isset($item['url']) ? $item['url'] : admin_url('admin.php?page=' . $item['slug']); ?>
+                                <a class="<?php echo $active === $key ? 'is-active' : ''; ?>" href="<?php echo esc_url($item_url); ?>"><span class="dashicons <?php echo esc_attr($item['icon']); ?>" aria-hidden="true"></span><span><?php echo esc_html($item['label']); ?></span></a>
                             <?php endforeach; ?>
                         </div>
                     <?php endforeach; ?>
@@ -669,6 +677,13 @@ final class EasyHeadless_Admin
                 'integrations' => array('label' => 'Integrations & updates', 'slug' => self::PAGE_PREFIX . 'integrations', 'icon' => 'dashicons-update'),
             ),
         );
+
+        $navigation['Content']['publication'] = array('label' => 'Publication', 'slug' => 'easyheadless-publication', 'icon' => 'dashicons-media-document');
+        if (EasyHeadless_Publication::enabled()) {
+            $navigation['Content']['homepage-sections'] = array('label' => 'Homepage sections', 'slug' => 'easyheadless-publication-curation', 'icon' => 'dashicons-screenoptions');
+            $navigation['Content']['issues'] = array('label' => 'Issues', 'slug' => 'easyheadless-publication-issues', 'url' => admin_url('edit.php?post_type=' . EasyHeadless_Publication::ISSUE_TYPE), 'icon' => 'dashicons-book-alt');
+            $navigation['Content']['readers'] = array('label' => 'Readers & contacts', 'slug' => 'easyheadless-publication-contacts', 'icon' => 'dashicons-groups');
+        }
 
         if (EasyHeadless_Modules::is_enabled('portfolio')) {
             $navigation['Content']['portfolio'] = array('label' => 'Portfolio', 'slug' => self::PAGE_PREFIX . 'portfolio', 'icon' => 'dashicons-format-gallery');

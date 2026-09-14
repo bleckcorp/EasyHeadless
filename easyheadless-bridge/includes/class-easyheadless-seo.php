@@ -49,9 +49,7 @@ final class EasyHeadless_SEO
             && $post instanceof WP_Post
             && in_array($post->post_type, array('page', 'post'), true)
         ) {
-            $path = 'post' === $post->post_type
-                ? '/insights/' . $post->post_name
-                : '/' . trim(get_page_uri($post), '/');
+            $path = EasyHeadless_Modules::frontend_content_path($post);
             $payload['canonical'] = rtrim($profile['frontend_url'], '/') . ($path ? $path : '/');
         }
 

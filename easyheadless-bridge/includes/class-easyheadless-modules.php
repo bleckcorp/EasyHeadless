@@ -27,6 +27,7 @@ final class EasyHeadless_Modules
             'address' => '',
             'short_description' => '',
             'frontend_url' => '',
+            'post_path_prefix' => 'insights',
             'lms_url' => '',
             'login_url' => '',
             'registration_url' => '',
@@ -67,6 +68,13 @@ final class EasyHeadless_Modules
             if (isset($value[$key])) {
                 $clean[$key] = rtrim(esc_url_raw($value[$key]), '/');
             }
+        }
+
+        $clean['post_path_prefix'] = isset($value['post_path_prefix'])
+            ? sanitize_title(trim((string) $value['post_path_prefix'], '/'))
+            : $clean['post_path_prefix'];
+        if (!$clean['post_path_prefix']) {
+            $clean['post_path_prefix'] = 'insights';
         }
 
         $clean['headless_routing'] = !empty($value['headless_routing']);
@@ -482,7 +490,11 @@ final class EasyHeadless_Modules
         }
 
         $profile = self::site_profile();
-        if (empty($profile['headless_routing']) || empty($profile['frontend_url']) || !is_singular(array('page', 'post'))) {
+        $singular_types = array('page', 'post');
+        if (class_exists('EasyHeadless_Publication')) {
+            $singular_types[] = EasyHeadless_Publication::ISSUE_TYPE;
+        }
+        if (empty($profile['headless_routing']) || empty($profile['frontend_url']) || !is_singular($singular_types)) {
             return;
         }
 
@@ -555,7 +567,11 @@ final class EasyHeadless_Modules
     private static function frontend_navigation_url($url, $object, $object_id)
     {
         $profile = self::site_profile();
-        if (empty($profile['frontend_url']) || !in_array($object, array('page', 'post'), true)) {
+        $supported_objects = array('page', 'post');
+        if (class_exists('EasyHeadless_Publication')) {
+            $supported_objects[] = EasyHeadless_Publication::ISSUE_TYPE;
+        }
+        if (empty($profile['frontend_url']) || !in_array($object, $supported_objects, true)) {
             return esc_url_raw($url);
         }
 
@@ -569,10 +585,15 @@ final class EasyHeadless_Modules
         return rtrim($profile['frontend_url'], '/') . ($path ? $path : '/');
     }
 
-    private static function frontend_content_path($post)
+    public static function frontend_content_path($post)
     {
         if ('post' === $post->post_type) {
-            return '/insights/' . $post->post_name;
+            $profile = self::site_profile();
+            return '/' . trim($profile['post_path_prefix'], '/') . '/' . $post->post_name;
+        }
+
+        if (class_exists('EasyHeadless_Publication') && EasyHeadless_Publication::ISSUE_TYPE === $post->post_type) {
+            return '/issues/' . $post->post_name;
         }
 
         if ((int) get_option('page_on_front') === (int) $post->ID) {

@@ -87,6 +87,32 @@ Returns posts. Query parameters:
 - `perPage`
 - `slug`
 
+## Publication module
+
+When the optional Publication module is enabled, its additive API is available under:
+
+```text
+/wp-json/easyheadless/v1/publication
+```
+
+`GET /homepage` returns the curated hero, supporting stories, and ordered homepage sections. Each section includes:
+
+- `key` — stable frontend identity
+- `title` — configured display title, selected WordPress category name, or default title
+- `source` — `latest`, `popular`, or `category`
+- `category` — selected WordPress category metadata, when configured
+- `layout` — `rail`, `lead`, `feature`, `portrait`, `editorial-rail`, or `portrait-rail`
+- `href` — configured link, selected category archive, or safe section fallback
+- `stories` — selected stories followed by automatically sourced stories up to the configured limit
+
+Editors manage section names, content sources, categories, layouts, story counts, visibility, order, links, and manual story IDs in **EasyHeadless → Homepage Sections**. Existing core endpoints remain unchanged.
+
+`GET /categories` and `GET /categories/{slug}` include `archiveMode`: `stories` or `issues`. Categories configured as issue archives should render the issue collection instead of their ordinary post archive.
+
+`GET /issues` returns published Issue records. Pass `category={slug}` to restrict results to Issues assigned to one configured archive category. Each Issue includes its categories, cover image, date, volume label, description and automatically assembled `stories`. Story membership comes from the article's **Cover / issue** selection; the legacy curated IDs remain additive for backwards compatibility.
+
+`GET /issues/{slug}` returns one Issue and its assigned stories. Issue routes are independent of the category slug, so changing an archive category's display name does not invalidate issue URLs.
+
 ## `GET /forms`
 
 Returns available form summaries:

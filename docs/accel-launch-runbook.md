@@ -58,7 +58,7 @@ Use `apps/accel-skills-hub` as the project root and copy the variables from `.en
 ## 5. Redirect and SEO map
 
 - WordPress pages redirect to the same public path.
-- WordPress posts redirect from their legacy path to `/insights/{slug}`.
+- WordPress posts redirect from their legacy path to the configured article prefix (default `/insights/{slug}`).
 - Tutor course, cart, checkout, account, registration, dashboard, REST, admin, and authentication routes stay on `learn`.
 - Next.js owns the public sitemap, canonicals, organization schema, and article schema.
 - Exclude redirected WordPress pages/posts from the LMS sitemap while keeping Tutor courses.

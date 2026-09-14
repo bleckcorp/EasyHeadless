@@ -81,6 +81,8 @@ function get_bloginfo($key)
     return 'name' === $key ? 'WordPress Default' : ('description' === $key ? 'WordPress description' : '');
 }
 
+function admin_url($path = '') { return 'https://example.com/wp-admin/' . ltrim($path, '/'); }
+
 function sanitize_email($value) { return filter_var($value, FILTER_SANITIZE_EMAIL); }
 function sanitize_text_field($value) { return trim(strip_tags((string) $value)); }
 function sanitize_textarea_field($value) { return trim(strip_tags((string) $value)); }
@@ -114,11 +116,13 @@ function assert_same($expected, $actual, $label)
 $sanitized = EasyHeadless_Modules::sanitize_site_profile(array(
     'company_name' => '<b>Accel</b>',
     'frontend_url' => 'https://accelskillshub.com/',
+    'post_path_prefix' => '/Stories/',
     'headless_routing' => '1',
     'social_links' => array(array('label' => 'LinkedIn', 'url' => 'https://linkedin.com/company/accel')),
 ));
 assert_same('Accel', $sanitized['company_name'], 'native profile sanitizes text');
 assert_same('https://accelskillshub.com', $sanitized['frontend_url'], 'native profile normalizes URLs');
+assert_same('stories', $sanitized['post_path_prefix'], 'native profile normalizes the article path prefix');
 assert_same(true, $sanitized['headless_routing'], 'native profile normalizes routing flag');
 
 $GLOBALS['eh_test_options'][EasyHeadless_Modules::OPTION_SITE_PROFILE] = array(
@@ -147,6 +151,15 @@ $path_method = new ReflectionMethod('EasyHeadless_Modules', 'frontend_content_pa
 assert_same('/', $path_method->invoke(null, new WP_Post(24, 'page', 'home-01')), 'WordPress front page maps to public site root');
 assert_same('/about', $path_method->invoke(null, new WP_Post(25, 'page', 'about')), 'regular pages retain their public path');
 assert_same('/insights/launch-news', $path_method->invoke(null, new WP_Post(26, 'post', 'launch-news')), 'posts retain the insights path');
+$GLOBALS['eh_test_options'][EasyHeadless_Modules::OPTION_SITE_PROFILE]['post_path_prefix'] = 'stories';
+assert_same('/stories/launch-news', $path_method->invoke(null, new WP_Post(26, 'post', 'launch-news')), 'posts can use a project-specific public path');
+
+$GLOBALS['eh_test_options'][EasyHeadless_Publication::OPTION_ENABLED] = '1';
+$admin_navigation = new ReflectionMethod('EasyHeadless_Admin', 'admin_navigation');
+$admin_items = $admin_navigation->invoke(null);
+assert_same('easyheadless-publication', $admin_items['Content']['publication']['slug'], 'Publication is discoverable in the EasyHeadless sidebar');
+assert_same('easyheadless-publication-curation', $admin_items['Content']['homepage-sections']['slug'], 'Enabled Publication tools are discoverable in the EasyHeadless sidebar');
+assert_same('edit.php?post_type=eh_issue', basename($admin_items['Content']['issues']['url']), 'Publication issues are discoverable in the EasyHeadless sidebar');
 
 $GLOBALS['eh_test_options'][EasyHeadless_Modules::OPTION_ENABLED_MODULES] = array(
     'core' => true,
