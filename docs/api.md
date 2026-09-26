@@ -18,6 +18,8 @@ Returns global site data:
 - `health`
 - `capabilities`
 
+The public `settings` object omits the revalidation webhook URL and secret. Those are configuration secrets, not frontend settings.
+
 ## `GET /capabilities`
 
 Returns `ready`, `degraded`, or `disabled` state for Core, Portfolio, Church, Tutor LMS, Forms, and the signed updater. Missing optional plugins never cause a fatal response.
@@ -55,6 +57,8 @@ Returns routable pages and posts:
 
 - `type`
 - `slug`
+
+Each normalized post also includes `date` (published ISO 8601 timestamp) and `categories` (objects with `id`, `name`, and `slug`). For pages and custom post types, `categories` is an empty list unless WordPress assigns the category taxonomy to that type. These fields are additive to the existing response.
 - `path`
 - `title`
 - `modified`
