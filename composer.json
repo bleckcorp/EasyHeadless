@@ -8,7 +8,7 @@
     "szepeviktor/phpstan-wordpress": "^2.0"
   },
   "scripts": {
-    "analyse": "phpstan analyse --configuration=phpstan.neon --no-progress --memory-limit=1G"
+    "analyse": "phpstan analyse --configuration=phpstan.neon --no-progress --memory-limit=2G"
   },
   "config": {
     "allow-plugins": {},
