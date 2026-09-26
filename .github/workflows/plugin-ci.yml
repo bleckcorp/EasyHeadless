@@ -28,6 +28,7 @@ jobs:
       - run: composer analyse
       - run: npm run lint:php
       - run: npm run test:php
+      - run: npm run client:build
       - run: npm run client:typecheck
       - run: npm run mcp:typecheck
       - run: npm --workspace @easyheadless/mcp-server test
