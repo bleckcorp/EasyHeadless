@@ -18,6 +18,8 @@ Returns global site data:
 - `health`
 - `capabilities`
 
+The public `settings` object omits the revalidation webhook URL and secret. Those are configuration secrets, not frontend settings.
+
 ## `GET /capabilities`
 
 Returns `ready`, `degraded`, or `disabled` state for Core, Portfolio, Church, Tutor LMS, Forms, and the signed updater. Missing optional plugins never cause a fatal response.
@@ -87,7 +89,21 @@ Returns posts. Query parameters:
 - `perPage`
 - `slug`
 
+Each normalized post also includes `date` (published ISO 8601 timestamp) and `categories` (objects with `id`, `name`, and `slug`). For pages and custom post types, `categories` is an empty list unless WordPress assigns the category taxonomy to that type. These fields are additive to the existing response.
+
 ## Publication module
+
+### Reader magic-link authentication
+
+Reader sign-in and registration share the same single-use email-link flow:
+
+- `POST /publication/auth/request-link` accepts `email`, `redirect` (an `/account` or `/stories/{slug}` path), and the trusted frontend's `request_ip`. Returns `{sent:true, method:"magic-link", expiresIn:600}`. It never returns a token, even in debug mode.
+- `POST /publication/auth/verify-link` accepts `email`, `token`, and optional `source_article`. Returns the existing `session_token`, expiry and reader account. Keep the token and frontend secret server-side, and put the session in an HttpOnly cookie.
+- Legacy `/auth/request-code` and `/auth/verify-code` paths alias the link handlers. No numeric codes are generated or accepted. Frontends must switch their UI and verification payload to the link flow.
+
+Configure the sign-in frontend URL in **EasyHeadless → Publication** (falls back to Site & URLs). The emailed URL uses `/login/magic#token=…&email=…&redirect=…`. A frontend confirmation page should capture and clear the fragment, then redeem the token with a POST only after the reader clicks Confirm. Opening a link with GET does not consume it, preventing mail scanners from accidentally signing in. The destination origin comes exclusively from admin configuration. Tokens are hashed at rest, expire after ten minutes, and are atomically consumed once. Requests are rate limited by email and IP.
+
+Admins can edit the email publication name, logo URL, subject, heading, rich-text message, button label and footer. Subject, heading and message support `{site_name}`, `{email}`, `{expires_minutes}`. HTML messages are sanitized. The branded template always includes the sign-in button, expiration notice, fallback link, and newsletter-consent explanation. WordPress `wp_mail` sends the email; the site's SMTP/email provider remains responsible for delivery. Verified readers stay in Readers & Contacts and WordPress subscriber accounts; no newsletter consent is added by sign-in.
 
 When the optional Publication module is enabled, its additive API is available under:
 
@@ -112,6 +128,21 @@ Editors manage section names, content sources, categories, layouts, story counts
 `GET /issues` returns published Issue records. Pass `category={slug}` to restrict results to Issues assigned to one configured archive category. Each Issue includes its categories, cover image, date, volume label, description and automatically assembled `stories`. Story membership comes from the article's **Cover / issue** selection; the legacy curated IDs remain additive for backwards compatibility.
 
 `GET /issues/{slug}` returns one Issue and its assigned stories. Issue routes are independent of the category slug, so changing an archive category's display name does not invalidate issue URLs.
+
+### Authenticated issue editing
+
+These routes require the EasyHeadless **API key**, not a reader frontend secret. The Publication module must be enabled. Existing public issue responses remain unchanged.
+
+- `GET /publication/story-search?search=title&page=1&perPage=20` searches published post titles only. Returns `items` (ID, slug, title, featured image URL and attachment ID, current issue assignment) and `pagination`. It never returns article bodies. `perPage` is capped at 50.
+- `POST /publication/issues` creates a separate `eh_issue` record, draft by default.
+- `GET /publication/issues/id/{id}` inspects one edition, including drafts/private issues.
+- `PATCH /publication/issues/id/{id}` updates only supplied fields.
+
+Create/update fields: `title`, `slug`, HTML `description`, plain-text `excerpt`, `status` (`draft`, `pending`, `publish`, `private`), `date` (valid `YYYY-MM-DD` or empty to clear), `volume`, `featuredImageId`, `featuredStoryId`, `storyIds` (up to 100 ordered published post IDs). Creating requires a title. Covers reference existing image attachments; `0` clears cover/featured article. `storyIds: []` clears curated links. Omitted values are preserved. Unsupported fields and invalid dates/IDs are rejected before writing. Duplicate slugs, including drafts, return HTTP 409 with code `issue_slug_exists` and the existing `issueId` in error data.
+
+Public and editorial Issue responses include `excerpt`, taken only from the manually authored WordPress Excerpt field. Empty excerpts stay empty; they are not generated from categories or the issue body. Use this field for archive summaries. `description` remains the full rendered issue content. Send `excerpt: ""` to clear a summary.
+
+Editorial responses extend the public Issue object with `status`, `featuredImageId`, `featuredStoryId` and `storyIds` (curated list). `stories` also includes independently assigned articles. Saving curated links changes only the edition; original posts are not converted or rewritten. Inspect and merge `storyIds` before appending articles.
 
 ## `GET /forms`
 

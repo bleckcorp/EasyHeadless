@@ -38,6 +38,20 @@ const writePostSchema = {
   excerpt: z.string().optional(),
   status: z.enum(["draft", "pending", "publish", "private"]).optional(),
   acf: acfSchema,
+  issueId: z.number().int().nonnegative().optional(),
+};
+
+const writeIssueSchema = {
+  title: z.string().trim().min(1).optional(),
+  slug: z.string().trim().min(1).optional(),
+  description: z.string().optional(),
+  excerpt: z.string().optional(),
+  status: z.enum(["draft", "pending", "publish", "private"]).optional(),
+  date: z.string().regex(/^$|^\d{4}-\d{2}-\d{2}$/).optional(),
+  volume: z.string().optional(),
+  featuredImageId: z.number().int().nonnegative().optional(),
+  featuredStoryId: z.number().int().nonnegative().optional(),
+  storyIds: z.array(z.number().int().positive()).max(100).optional(),
 };
 
 function textResult(value: unknown) {
@@ -58,6 +72,7 @@ function writeInput(input: z.infer<z.ZodObject<typeof writePostSchema>>): WriteP
     excerpt: input.excerpt,
     status: input.status,
     acf: input.acf,
+    issueId: input.issueId,
   };
 }
 
@@ -231,6 +246,86 @@ server.registerTool(
     inputSchema: { slug: z.string() },
   },
   async ({ slug }) => textResult(await client.getCourse(slug)),
+);
+
+server.registerTool(
+  "easyheadless.list_issues",
+  {
+    title: "List Publication Issues",
+    description: "Read Film Efiko cover issues and the stories assigned to each issue.",
+    inputSchema: {
+      category: z.string().optional(),
+      perPage: z.number().int().positive().max(50).default(20),
+    },
+  },
+  async (input) => textResult(await client.listIssues(input)),
+);
+
+server.registerTool(
+  "easyheadless.get_issue",
+  {
+    title: "Get Publication Issue",
+    description: "Read one Film Efiko cover issue and its assigned stories by slug.",
+    inputSchema: { slug: z.string() },
+  },
+  async ({ slug }) => textResult(await client.getIssue(slug)),
+);
+
+server.registerTool(
+  "easyheadless.assign_post_to_issue",
+  {
+    title: "Assign Post to Issue",
+    description: "Assign or unassign a Film Efiko story from a cover issue. Use issueId 0 to unassign. Requires EASYHEADLESS_API_KEY.",
+    inputSchema: {
+      postId: z.number().int().positive(),
+      issueId: z.number().int().nonnegative(),
+    },
+  },
+  async ({ postId, issueId }) => textResult(await client.assignPostToIssue(postId, issueId)),
+);
+
+server.registerTool(
+  "easyheadless.search_stories",
+  {
+    title: "Search Articles by Title",
+    description: "Search published article titles to find IDs and existing cover attachment IDs. Requires EASYHEADLESS_API_KEY. Does not return article body or gated content.",
+    inputSchema: {
+      search: z.string().trim().min(1),
+      page: z.number().int().positive().default(1),
+      perPage: z.number().int().positive().max(50).default(20),
+    },
+  },
+  async ({ search, page, perPage }) => textResult(await client.searchStories(search, page, perPage)),
+);
+
+server.registerTool(
+  "easyheadless.inspect_issue",
+  {
+    title: "Inspect Issue for Editing",
+    description: "Read an issue by ID, including drafts, status, attachment ID and curated story IDs. Requires EASYHEADLESS_API_KEY. Inspect before updating to preserve unrelated selections.",
+    inputSchema: { id: z.number().int().positive() },
+  },
+  async ({ id }) => textResult(await client.inspectIssue(id)),
+);
+
+server.registerTool(
+  "easyheadless.create_issue",
+  {
+    title: "Create Publication Issue",
+    description: "Create a separate magazine issue, draft by default. Use an existing image attachment for its cover and storyIds for linked articles. Never converts or rewrites original posts. Duplicate slugs return an error. Requires EASYHEADLESS_API_KEY.",
+    inputSchema: { ...writeIssueSchema, title: z.string().trim().min(1) },
+  },
+  async (input) => textResult(await client.createIssue(input)),
+);
+
+server.registerTool(
+  "easyheadless.update_issue",
+  {
+    title: "Update Publication Issue",
+    description: "Update only supplied issue fields. storyIds replaces its curated article list; merge existing IDs first to append. Use 0 to clear cover/featured story, [] to clear curated links. Original posts and independent article assignments remain unchanged. Requires EASYHEADLESS_API_KEY.",
+    inputSchema: { id: z.number().int().positive(), ...writeIssueSchema },
+  },
+  async ({ id, ...input }) => textResult(await client.updateIssue(id, input)),
 );
 
 server.registerTool(

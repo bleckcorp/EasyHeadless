@@ -291,12 +291,39 @@ final class EasyHeadless_Admin
                 <label><span>Article path prefix</span><input type="text" name="profile[post_path_prefix]" value="<?php echo esc_attr($profile['post_path_prefix']); ?>" placeholder="stories"><small>Public path segment for posts, for example <code>stories</code> produces <code>/stories/article-slug</code>.</small></label>
                 <label><span>Revalidation secret</span><input type="password" name="profile[revalidation_secret]" value="<?php echo esc_attr($profile['revalidation_secret']); ?>" autocomplete="new-password"></label>
             </div>
+            <?php self::render_social_fields($profile); ?>
             <label class="eh-check"><input type="checkbox" name="profile[headless_routing]" value="1" <?php checked(!empty($profile['headless_routing'])); ?>><span><strong>Enable headless routing</strong><small>Redirect public WordPress pages and posts while preserving LMS, checkout, admin, REST, and authentication routes.</small></span></label>
             <label class="eh-field-full"><span>Allowed frontend origins</span><textarea name="origins" rows="4"><?php echo esc_textarea(get_option(EasyHeadless_Plugin::OPTION_ALLOWED_ORIGINS, '')); ?></textarea><small>One HTTPS origin per line.</small></label>
             <div class="eh-form-actions"><button class="button button-primary" type="submit">Save site settings</button></div>
         </form>
         <?php
         self::close_page();
+    }
+
+    public static function render_social_fields($profile)
+    {
+        $links = isset($profile['social_links']) && is_array($profile['social_links']) ? $profile['social_links'] : array();
+        $links = array_values(array_filter($links, 'is_array'));
+        $labels = array_map(function ($link) {
+            return strtolower(preg_replace('/[^a-z]/i', '', isset($link['label']) ? $link['label'] : ''));
+        }, $links);
+        foreach (array('LinkedIn', 'Instagram', 'YouTube', 'TikTok', 'X / Twitter') as $label) {
+            $key = strtolower(preg_replace('/[^a-z]/i', '', $label));
+            $aliases = 'xtwitter' === $key ? array('x', 'twitter', 'xtwitter', 'twitterx') : array($key);
+            if (!array_intersect($aliases, $labels)) {
+                $links[] = array('label' => $label, 'url' => '');
+            }
+        }
+        $links[] = array('label' => '', 'url' => '');
+        ?>
+        <div class="eh-section-heading eh-section-divider"><div><h2>Social media links</h2><p>Set your public profile URLs. Leave a URL blank to remove its link. Additional saved networks are preserved.</p></div></div>
+        <div class="eh-form-grid">
+            <?php foreach ($links as $index => $link) : ?>
+                <label><span>Network <?php echo esc_html($index + 1); ?></span><input type="text" name="profile[social_links][<?php echo esc_attr($index); ?>][label]" value="<?php echo esc_attr(isset($link['label']) ? $link['label'] : ''); ?>" placeholder="Network name"></label>
+                <label><span>Profile URL <?php echo esc_html($index + 1); ?></span><input type="url" name="profile[social_links][<?php echo esc_attr($index); ?>][url]" value="<?php echo esc_attr(isset($link['url']) ? $link['url'] : ''); ?>" placeholder="https://"></label>
+            <?php endforeach; ?>
+        </div>
+        <?php
     }
 
     public static function render_navigation()
@@ -627,6 +654,16 @@ final class EasyHeadless_Admin
         if (isset($_GET['eh_notice']) && 'saved' === sanitize_key(wp_unslash($_GET['eh_notice']))) {
             echo '<div class="notice notice-success is-dismissible"><p><strong>Changes saved.</strong></p></div>';
         }
+    }
+
+    public static function open_module_page($title, $subtitle, $active)
+    {
+        self::open_page($title, $subtitle, $active);
+    }
+
+    public static function close_module_page()
+    {
+        self::close_page();
     }
 
     private static function open_page($title, $subtitle, $active)

@@ -20,6 +20,8 @@ function sanitize_text_field($value) { return trim(strip_tags((string) $value));
 function esc_url_raw($value) { return filter_var((string) $value, FILTER_SANITIZE_URL); }
 function wp_kses_post($value) { return (string) $value; }
 function term_description($term_id, $taxonomy) { return 'Cover archive'; }
+function current_user_can($capability) { return true; }
+function wp_unslash($value) { return $value; }
 
 require_once dirname(__DIR__, 2) . '/easyheadless-bridge/includes/class-easyheadless-publication.php';
 
@@ -92,9 +94,12 @@ publication_assert('stories' === $archive_mode->invoke(null, 'unsupported'), 'Un
 $term_meta[16][EasyHeadless_Publication::TERM_META_ARCHIVE_MODE] = 'issues';
 $category = EasyHeadless_Publication::normalize_category(get_category_by_slug('cover'));
 publication_assert('issues' === $category['archiveMode'], 'Category responses expose the configured issue archive behaviour.');
-$migrate_posts = new ReflectionMethod('EasyHeadless_Publication', 'migrate_category_posts_to_issues');
-$migrate_posts->invoke(null, 16);
-publication_assert(array(array('ID' => 101, 'post_type' => EasyHeadless_Publication::ISSUE_TYPE), array('ID' => 102, 'post_type' => EasyHeadless_Publication::ISSUE_TYPE)) === $updated_posts, 'Legacy category posts can be converted to issue records without replacing their IDs.');
+$_POST = array('easyheadless_presentation_style' => 'new-yorker', 'easyheadless_archive_mode' => 'issues', 'easyheadless_migrate_category_posts' => '1');
+EasyHeadless_Publication::save_category_style(16);
+publication_assert(array() === $updated_posts, 'Legacy migration input cannot convert posts when saving a category.');
+publication_assert('new-yorker' === $term_meta[16][EasyHeadless_Publication::TERM_META_PRESENTATION_STYLE], 'Category presentation is still saved.');
+publication_assert('issues' === $term_meta[16][EasyHeadless_Publication::TERM_META_ARCHIVE_MODE], 'Saving presentation preserves existing archive metadata.');
+$_POST = array();
 publication_assert('0.6.6' === EasyHeadless_Publication::SCHEMA_VERSION, 'Dynamic issue archive schema is current.');
 publication_assert('_easyheadless_issue_id' === EasyHeadless_Publication::META_ISSUE_ID, 'Stories use a dedicated issue assignment field.');
 publication_assert('_easyheadless_issue_volume' === EasyHeadless_Publication::ISSUE_META_VOLUME, 'Issues use a dedicated volume label field.');

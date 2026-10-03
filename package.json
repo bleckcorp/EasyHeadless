@@ -15,8 +15,10 @@
   },
   "scripts": {
     "lint:php": "find easyheadless-bridge -name '*.php' -print0 | xargs -0 -n1 php -l",
-    "test:php": "php tests/php/smoke.php && php tests/php/admin-assets.php && php tests/php/admin-menu.php && php tests/php/admin-credentials.php && php tests/php/fluent-forms.php && php tests/php/updater.php && php tests/php/publication.php",
+    "test:php": "php tests/php/smoke.php && php tests/php/site-secrets.php && php tests/php/admin-assets.php && php tests/php/admin-menu.php && php tests/php/admin-credentials.php && php tests/php/fluent-forms.php && php tests/php/updater.php && php tests/php/publication.php && php tests/php/publication-content.php && php tests/php/publication-issues.php && php tests/php/publication-editor.php && php tests/php/magic-link.php",
     "package:plugin": "bash scripts/package-plugin.sh",
+    "test:publication-lists": "php tests/php/publication-lists.php",
+    "test:issue-excerpt": "php tests/php/issue-excerpt.php",
     "client:build": "npm --workspace @easyheadless/client run build",
     "client:typecheck": "npm --workspace @easyheadless/client run typecheck",
     "mcp:build": "npm --workspace @easyheadless/mcp-server run build",

@@ -192,6 +192,8 @@ final class EasyHeadless_REST
     public function site()
     {
         $settings = EasyHeadless_Modules::site_profile();
+        $public_settings = $settings;
+        unset($public_settings['revalidation_url'], $public_settings['revalidation_secret']);
         $church_enabled = EasyHeadless_Modules::is_enabled('church');
         $church = $church_enabled ? $this->church_data() : array();
         $capabilities = EasyHeadless_Modules::capabilities($this->forms);
@@ -221,7 +223,7 @@ final class EasyHeadless_REST
             'frontendUrl' => $settings['frontend_url'],
             'lmsUrl' => $settings['lms_url'] ? $settings['lms_url'] : home_url('/'),
             'portalLinks' => EasyHeadless_Modules::portal_links(),
-            'settings' => $settings,
+            'settings' => $public_settings,
             'church' => $church,
             'contact' => array(
                 'companyName' => isset($settings['company_name']) && $settings['company_name'] ? $settings['company_name'] : get_bloginfo('name'),
@@ -532,6 +534,13 @@ final class EasyHeadless_REST
 
         $this->update_acf_fields($post_id, isset($body['acf']) && is_array($body['acf']) ? $body['acf'] : array());
 
+        if (array_key_exists('issueId', $body) && class_exists('EasyHeadless_Publication')) {
+            $assignment = EasyHeadless_Publication::assign_story_to_issue($post_id, $body['issueId']);
+            if (is_wp_error($assignment)) {
+                return $assignment;
+            }
+        }
+
         return rest_ensure_response($this->normalize_post(get_post($post_id)));
     }
 
@@ -570,6 +579,13 @@ final class EasyHeadless_REST
         }
 
         $this->update_acf_fields($post_id, isset($body['acf']) && is_array($body['acf']) ? $body['acf'] : array());
+
+        if (array_key_exists('issueId', $body) && class_exists('EasyHeadless_Publication')) {
+            $assignment = EasyHeadless_Publication::assign_story_to_issue($post_id, $body['issueId']);
+            if (is_wp_error($assignment)) {
+                return $assignment;
+            }
+        }
 
         return rest_ensure_response($this->normalize_post(get_post($post_id)));
     }
@@ -718,6 +734,10 @@ final class EasyHeadless_REST
     private function normalize_post($post)
     {
         $featured_id = get_post_thumbnail_id($post);
+        $terms = get_the_terms($post, 'category');
+        $categories = is_array($terms) ? array_values(array_map(function ($term) {
+            return array('id' => (int) $term->term_id, 'name' => $term->name, 'slug' => $term->slug);
+        }, $terms)) : array();
         $acf = EasyHeadless_ACF::get_fields($post->ID);
         $acf = $this->normalize_acf_fields(is_array($acf) ? $acf : array());
 
@@ -729,6 +749,8 @@ final class EasyHeadless_REST
             'title' => html_entity_decode(get_the_title($post), ENT_QUOTES),
             'content' => apply_filters('the_content', $post->post_content),
             'excerpt' => wp_strip_all_tags(get_the_excerpt($post)),
+            'date' => get_post_time(DATE_ATOM, true, $post),
+            'categories' => $categories,
             'featuredImage' => $featured_id ? array(
                 'id' => $featured_id,
                 'url' => wp_get_attachment_image_url($featured_id, 'full'),

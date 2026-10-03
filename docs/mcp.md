@@ -71,6 +71,10 @@ Read tools:
 - `easyheadless.get_page`
 - `easyheadless.list_posts`
 - `easyheadless.get_post`
+- `easyheadless.list_issues`
+- `easyheadless.get_issue`
+- `easyheadless.search_stories` (API key required; title search and cover attachment IDs)
+- `easyheadless.inspect_issue` (API key required; includes draft editions and editable fields)
 - `easyheadless.list_forms`
 - `easyheadless.get_form_schema`
 - `easyheadless.get_collections`
@@ -91,10 +95,21 @@ Write tools:
 - `easyheadless.create_team_member`
 - `easyheadless.update_team_member`
 - `easyheadless.update_page_sections`
+- `easyheadless.assign_post_to_issue`
+- `easyheadless.create_issue`
+- `easyheadless.update_issue`
 - `easyheadless.check_update` (verification only)
 - `easyheadless.install_update` (explicit production mutation)
 
 `easyheadless.update_page_sections` defaults to `previewOnly: true`. Set `previewOnly: false` only after reviewing the proposed ACF section payload.
+
+### Manage editions without migrating posts
+
+Use `search_stories` with a title to find published article IDs and existing Media Library `featuredImageId` values. Use `list_issues` to check published editions, then `create_issue` with a title, explicit slug, `date` (`YYYY-MM-DD`), volume, cover `featuredImageId`, `featuredStoryId` and ordered `storyIds`. Creation defaults to a **draft**; set `status: "publish"` explicitly to publish. Duplicate issue slugs return `issue_slug_exists` with the existing issue ID, including draft editions.
+
+Use `inspect_issue` by ID before calling `update_issue`. Updates are partial: omitted fields are preserved. `storyIds` replaces the curated list, so merge existing IDs to append; `[]` clears it. Use `0` to clear the cover or featured article. Linked articles must be published posts; covers must be existing image attachments. These tools never convert, delete or rewrite source posts. Independent **Cover / issue** assignments remain additive; clearing curated IDs does not remove those assignments.
+
+The plugin must include the matching editorial REST routes and the MCP process must be rebuilt/restarted before these tools can be used on an installed site. They do not expose SQL or migration operations.
 
 ## Resources
 

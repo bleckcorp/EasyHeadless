@@ -221,6 +221,64 @@ export type WritePostInput = {
   excerpt?: string;
   status?: "draft" | "pending" | "publish" | "private";
   acf?: Record<string, unknown>;
+  /** Assign the story to an EasyHeadless publication issue; use 0 to unassign. */
+  issueId?: number;
+};
+
+export type EasyHeadlessIssue = {
+  id: number;
+  slug: string;
+  title: string;
+  date: string;
+  volume: string;
+  cover: string;
+  description: string;
+  excerpt?: string;
+  href: string;
+  categories: Array<{ id: number; name: string; slug: string }>;
+  stories: Array<{
+    id: number;
+    slug: string;
+    title: string;
+    excerpt: string;
+    date: string;
+    image: string;
+    imageAlt: string;
+    imageCaption: string;
+    author: { id: number; name: string; slug: string };
+    categories: Array<{ id: number; name: string; slug: string }>;
+    access: "public" | "members";
+    presentationStyle: "nation" | "new-yorker";
+  }>;
+};
+
+export type WriteIssueInput = {
+  title?: string;
+  slug?: string;
+  description?: string;
+  /** Manually authored archive summary, independent of issue categories/body. */
+  excerpt?: string;
+  status?: "draft" | "pending" | "publish" | "private";
+  /** Edition date, YYYY-MM-DD; empty string clears the override. */
+  date?: string;
+  volume?: string;
+  /** Existing Media Library attachment ID; 0 clears the cover. */
+  featuredImageId?: number;
+  featuredStoryId?: number;
+  /** Ordered linked articles. Does not modify the articles themselves. */
+  storyIds?: number[];
+};
+
+export type EditableIssue = EasyHeadlessIssue & {
+  status: NonNullable<WriteIssueInput["status"]> | "future";
+  featuredImageId: number;
+  featuredStoryId: number;
+  storyIds: number[];
+};
+
+export type IssueStorySearchResult = {
+  items: Array<{ id: number; slug: string; title: string; featuredImageId: number; featuredImage: string; issueId: number }>;
+  pagination: { page: number; perPage: number; total: number; totalPages: number };
 };
 
 export type EasyHeadlessClientOptions = {
@@ -318,6 +376,43 @@ export class EasyHeadlessClient {
 
   getPost(slug: string) {
     return this.request<EasyHeadlessPost>(`/posts?slug=${encodeURIComponent(slug)}`);
+  }
+
+  listIssues(options: { category?: string; perPage?: number } = {}) {
+    const params = new URLSearchParams();
+    if (options.category) params.set("category", options.category);
+    if (options.perPage) params.set("per_page", String(options.perPage));
+    const query = params.toString();
+    return this.request<EasyHeadlessIssue[]>(`/publication/issues${query ? `?${query}` : ""}`);
+  }
+
+  getIssue(slug: string) {
+    return this.request<EasyHeadlessIssue>(`/publication/issues/${encodeURIComponent(slug)}`);
+  }
+
+  inspectIssue(id: number) {
+    return this.request<EditableIssue>(`/publication/issues/id/${id}`, { auth: true });
+  }
+
+  createIssue(input: WriteIssueInput & { title: string }) {
+    return this.request<EditableIssue>("/publication/issues", {
+      method: "POST", body: JSON.stringify(input), auth: true,
+    });
+  }
+
+  updateIssue(id: number, input: WriteIssueInput) {
+    return this.request<EditableIssue>(`/publication/issues/id/${id}`, {
+      method: "PATCH", body: JSON.stringify(input), auth: true,
+    });
+  }
+
+  searchStories(search: string, page = 1, perPage = 20) {
+    const params = new URLSearchParams({ search, page: String(page), perPage: String(perPage) });
+    return this.request<IssueStorySearchResult>(`/publication/story-search?${params}`, { auth: true });
+  }
+
+  assignPostToIssue(postId: number, issueId: number) {
+    return this.updatePost(postId, { issueId });
   }
 
   listSermons() {

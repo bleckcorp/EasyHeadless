@@ -45,6 +45,63 @@ test("reads routes from EasyHeadless", async () => {
   );
 });
 
+test("reads publication issues and assigns a post with bearer auth", async () => {
+  await withMockServer(
+    async (request, response) => {
+      response.setHeader("Content-Type", "application/json");
+      if (request.url === "/wp-json/easyheadless/v1/publication/issues?per_page=20") {
+        response.end(JSON.stringify([{ id: 7828, slug: "volume-1", title: "Volume 1", stories: [] }]));
+        return;
+      }
+      assert.equal(request.url, "/wp-json/easyheadless/v1/posts/7615");
+      assert.equal(request.method, "PATCH");
+      assert.equal(request.headers.authorization, "Bearer issue-key");
+      const body = await readBody(request);
+      assert.equal(body.issueId, 7828);
+      response.end(JSON.stringify({ id: 7615, title: "Story", issueId: 7828 }));
+    },
+    async (apiUrl) => {
+      const client = new EasyHeadlessClient({ apiUrl, apiKey: "issue-key" });
+      const issues = await client.listIssues({ perPage: 20 });
+      assert.equal(issues[0].slug, "volume-1");
+      const updated = await client.assignPostToIssue(7615, 7828);
+      assert.equal(updated.id, 7615);
+    },
+  );
+});
+
+test("creates, inspects, updates issues and searches titles with bearer auth", async () => {
+  const seen = [];
+  await withMockServer(async (request, response) => {
+    assert.equal(request.headers.authorization, "Bearer issue-key");
+    const body = await readBody(request);
+    seen.push({ method: request.method, url: request.url, body });
+    response.setHeader("Content-Type", "application/json");
+    response.end(JSON.stringify(request.url.includes("story-search")
+      ? { items: [{ id: 10, title: "Article", featuredImageId: 99 }], pagination: {} }
+      : { id: 42, title: "Volume 1", status: "draft", ...body }));
+  }, async (apiUrl) => {
+    const client = new EasyHeadlessClient({ apiUrl, apiKey: "issue-key" });
+    assert.equal((await client.createIssue({ title: "Volume 1", storyIds: [10], featuredImageId: 99 })).id, 42);
+    assert.equal((await client.inspectIssue(42)).status, "draft");
+    await client.updateIssue(42, { volume: "Volume 1" });
+    assert.equal((await client.searchStories("Film & cinema", 2, 12)).items[0].featuredImageId, 99);
+  });
+  assert.deepEqual(seen, [
+    { method: "POST", url: "/wp-json/easyheadless/v1/publication/issues", body: { title: "Volume 1", storyIds: [10], featuredImageId: 99 } },
+    { method: "GET", url: "/wp-json/easyheadless/v1/publication/issues/id/42", body: {} },
+    { method: "PATCH", url: "/wp-json/easyheadless/v1/publication/issues/id/42", body: { volume: "Volume 1" } },
+    { method: "GET", url: "/wp-json/easyheadless/v1/publication/story-search?search=Film+%26+cinema&page=2&perPage=12", body: {} },
+  ]);
+  const unauthenticated = new EasyHeadlessClient({ apiUrl: "http://127.0.0.1:1" });
+  for (const call of [
+    () => unauthenticated.createIssue({ title: "Issue" }),
+    () => unauthenticated.updateIssue(42, { title: "Issue" }),
+    () => unauthenticated.inspectIssue(42),
+    () => unauthenticated.searchStories("Article"),
+  ]) await assert.rejects(call, /EASYHEADLESS_API_KEY is required/);
+});
+
 test("sends bearer auth for write requests", async () => {
   await withMockServer(
     async (request, response) => {

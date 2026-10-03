@@ -4,6 +4,8 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+require_once __DIR__ . '/class-easyheadless-publication-content.php';
+
 /**
  * Optional publication features for editorial sites.
  *
@@ -37,6 +39,7 @@ final class EasyHeadless_Publication
     {
         add_action('init', array(__CLASS__, 'register_issue_type'));
         add_action('init', array(__CLASS__, 'register_linked_story_block'));
+        add_action('wp_abilities_api_init', array(__CLASS__, 'register_abilities'));
         add_action('rest_api_init', array(__CLASS__, 'register_routes'));
         add_action('admin_menu', array(__CLASS__, 'register_admin_pages'), 30);
         add_action('admin_init', array(__CLASS__, 'register_settings'));
@@ -138,6 +141,14 @@ final class EasyHeadless_Publication
             'social_facebook' => '',
             'social_instagram' => '',
             'social_x' => '',
+            'auth_frontend_url' => '',
+            'auth_brand_name' => 'Film Efiko',
+            'auth_logo_url' => '',
+            'auth_email_subject' => 'Your {site_name} sign-in link',
+            'auth_email_heading' => 'Your next read awaits.',
+            'auth_email_message' => "Click below to sign in or create your reader account and continue reading. No password needed.",
+            'auth_email_button' => 'Continue reading',
+            'auth_email_footer' => 'For the Art and Business of Nigerian/African Film Entertainment',
         );
     }
 
@@ -146,16 +157,17 @@ final class EasyHeadless_Publication
         $curation = array('hero_id' => 0, 'support_ids' => array());
         $position = 0;
         foreach (self::section_definitions() as $key => $definition) {
+            $category = 'lists' === $key ? get_category_by_slug('lists') : false;
             $curation[$key] = array(
                 'title' => $definition['title'],
-                'category_id' => 0,
+                'category_id' => $category ? absint($category->term_id) : 0,
                 'post_ids' => array(),
-                'source' => 'hot-hot' === $key ? 'popular' : 'latest',
+                'source' => 'lists' === $key ? 'category' : ('hot-hot' === $key ? 'popular' : 'latest'),
                 'layout' => $definition['layout'],
                 'count' => $definition['count'],
                 'enabled' => '1',
                 'order' => $position++,
-                'href' => '',
+                'href' => 'lists' === $key ? '/category/lists' : '',
             );
         }
         $curation['spotlight']['start_date'] = '';
@@ -213,6 +225,75 @@ final class EasyHeadless_Publication
         register_post_meta('post', self::META_ISSUE_ID, array('type' => 'integer', 'single' => true, 'show_in_rest' => true, 'sanitize_callback' => 'absint', 'auth_callback' => function () { return current_user_can('edit_posts'); }));
     }
 
+    /**
+     * Register the issue assignment as a native WordPress Ability when the
+     * Abilities API is available. The guard keeps older WordPress installs
+     * compatible while allowing the official MCP Adapter to expose it.
+     */
+    public static function register_abilities()
+    {
+        if (!function_exists('wp_register_ability')) {
+            return;
+        }
+
+        wp_register_ability('easyheadless/assign-post-to-issue', array(
+            'label' => 'Assign post to issue',
+            'description' => 'Assign or unassign a published Film Efiko story from a cover issue.',
+            'category' => 'content',
+            'input_schema' => array(
+                'type' => 'object',
+                'properties' => array(
+                    'post_id' => array('type' => 'integer', 'minimum' => 1),
+                    'issue_id' => array('type' => 'integer', 'minimum' => 0),
+                ),
+                'required' => array('post_id', 'issue_id'),
+                'additionalProperties' => false,
+            ),
+            'output_schema' => array(
+                'type' => 'object',
+                'properties' => array(
+                    'postId' => array('type' => 'integer'),
+                    'issueId' => array('type' => 'integer'),
+                ),
+                'required' => array('postId', 'issueId'),
+            ),
+            'execute_callback' => array(__CLASS__, 'ability_assign_post_to_issue'),
+            'permission_callback' => array(__CLASS__, 'ability_can_assign_post_to_issue'),
+            'meta' => array(
+                'public' => true,
+                'mcp' => array('public' => true),
+            ),
+        ));
+    }
+
+    public static function ability_can_assign_post_to_issue($input)
+    {
+        $post_id = absint(isset($input['post_id']) ? $input['post_id'] : 0);
+        return $post_id && current_user_can('edit_post', $post_id);
+    }
+
+    public static function ability_assign_post_to_issue($input)
+    {
+        return self::assign_story_to_issue(
+            absint(isset($input['post_id']) ? $input['post_id'] : 0),
+            absint(isset($input['issue_id']) ? $input['issue_id'] : 0)
+        );
+    }
+
+    public static function assign_story_to_issue($post_id, $issue_id)
+    {
+        $post_id = absint($post_id);
+        $issue_id = absint($issue_id);
+        if (!$post_id || 'post' !== get_post_type($post_id)) {
+            return new WP_Error('publication_story_not_found', 'Story not found.', array('status' => 404));
+        }
+        if ($issue_id && self::ISSUE_TYPE !== get_post_type($issue_id)) {
+            return new WP_Error('publication_issue_not_found', 'Issue not found.', array('status' => 404));
+        }
+        update_post_meta($post_id, self::META_ISSUE_ID, $issue_id);
+        return array('postId' => $post_id, 'issueId' => $issue_id);
+    }
+
     public static function register_linked_story_block()
     {
         if (!self::enabled() || !function_exists('register_block_type')) {
@@ -255,27 +336,16 @@ final class EasyHeadless_Publication
         <div class="form-field"><label for="easyheadless-presentation-style">Presentation style</label>
             <select id="easyheadless-presentation-style" name="easyheadless_presentation_style"><option value="nation">Nation / standard</option><option value="new-yorker">New Yorker inspired</option></select>
             <p>Controls the category page and the default presentation of stories in this category.</p></div>
-        <div class="form-field"><label for="easyheadless-archive-mode">Archive behaviour</label>
-            <select id="easyheadless-archive-mode" name="easyheadless_archive_mode"><option value="stories">List stories</option><option value="issues">List covers / issues</option></select>
-            <p>Issue archives list cover records; opening a cover shows the stories assigned to it.</p></div>
-        <div class="form-field"><label><input type="checkbox" name="easyheadless_migrate_category_posts" value="1"> Convert existing posts in this category into issues</label>
-            <p>Use once when moving a legacy cover category. Titles, slugs, content, dates and featured images are preserved.</p></div>
         <?php
     }
 
     public static function render_category_style_edit($term)
     {
         $style = self::sanitize_presentation_style(get_term_meta($term->term_id, self::TERM_META_PRESENTATION_STYLE, true), 'nation');
-        $archive_mode = self::sanitize_archive_mode(get_term_meta($term->term_id, self::TERM_META_ARCHIVE_MODE, true));
         ?>
         <tr class="form-field"><th scope="row"><label for="easyheadless-presentation-style">Presentation style</label></th><td>
             <select id="easyheadless-presentation-style" name="easyheadless_presentation_style"><option value="nation" <?php selected($style, 'nation'); ?>>Nation / standard</option><option value="new-yorker" <?php selected($style, 'new-yorker'); ?>>New Yorker inspired</option></select>
             <p class="description">Controls the category page and the default presentation of stories in this category.</p></td></tr>
-        <tr class="form-field"><th scope="row"><label for="easyheadless-archive-mode">Archive behaviour</label></th><td>
-            <select id="easyheadless-archive-mode" name="easyheadless_archive_mode"><option value="stories" <?php selected($archive_mode, 'stories'); ?>>List stories</option><option value="issues" <?php selected($archive_mode, 'issues'); ?>>List covers / issues</option></select>
-            <p class="description">Issue archives list cover records; opening a cover shows the stories assigned to it.</p></td></tr>
-        <tr class="form-field"><th scope="row">Legacy posts</th><td><label><input type="checkbox" name="easyheadless_migrate_category_posts" value="1"> Convert existing posts in this category into issues</label>
-            <p class="description">Use once. Titles, slugs, content, dates and featured images are preserved. Take a database backup before converting published content.</p></td></tr>
         <?php
     }
 
@@ -286,12 +356,6 @@ final class EasyHeadless_Publication
         }
         $value = isset($_POST['easyheadless_presentation_style']) ? sanitize_key(wp_unslash($_POST['easyheadless_presentation_style'])) : 'nation';
         update_term_meta($term_id, self::TERM_META_PRESENTATION_STYLE, self::sanitize_presentation_style($value, 'nation'));
-        $archive_mode = isset($_POST['easyheadless_archive_mode']) ? sanitize_key(wp_unslash($_POST['easyheadless_archive_mode'])) : 'stories';
-        $archive_mode = self::sanitize_archive_mode($archive_mode);
-        update_term_meta($term_id, self::TERM_META_ARCHIVE_MODE, $archive_mode);
-        if ('issues' === $archive_mode && !empty($_POST['easyheadless_migrate_category_posts'])) {
-            self::migrate_category_posts_to_issues($term_id);
-        }
     }
 
     private static function sanitize_presentation_style($value, $fallback = 'nation')
@@ -302,20 +366,6 @@ final class EasyHeadless_Publication
     private static function sanitize_archive_mode($value)
     {
         return 'issues' === $value ? 'issues' : 'stories';
-    }
-
-    private static function migrate_category_posts_to_issues($term_id)
-    {
-        $post_ids = get_posts(array(
-            'post_type' => 'post',
-            'post_status' => array('publish', 'draft', 'future', 'private'),
-            'numberposts' => -1,
-            'fields' => 'ids',
-            'category' => absint($term_id),
-        ));
-        foreach ($post_ids as $post_id) {
-            wp_update_post(array('ID' => absint($post_id), 'post_type' => self::ISSUE_TYPE));
-        }
     }
 
     public static function register_settings()
@@ -351,6 +401,14 @@ final class EasyHeadless_Publication
             'social_facebook' => esc_url_raw(isset($input['social_facebook']) ? $input['social_facebook'] : ''),
             'social_instagram' => esc_url_raw(isset($input['social_instagram']) ? $input['social_instagram'] : ''),
             'social_x' => esc_url_raw(isset($input['social_x']) ? $input['social_x'] : ''),
+            'auth_frontend_url' => esc_url_raw(isset($input['auth_frontend_url']) ? $input['auth_frontend_url'] : $existing['auth_frontend_url']),
+            'auth_brand_name' => sanitize_text_field(isset($input['auth_brand_name']) ? $input['auth_brand_name'] : $existing['auth_brand_name']),
+            'auth_logo_url' => esc_url_raw(isset($input['auth_logo_url']) ? $input['auth_logo_url'] : $existing['auth_logo_url']),
+            'auth_email_subject' => sanitize_text_field(isset($input['auth_email_subject']) ? $input['auth_email_subject'] : $existing['auth_email_subject']),
+            'auth_email_heading' => sanitize_text_field(isset($input['auth_email_heading']) ? $input['auth_email_heading'] : $existing['auth_email_heading']),
+            'auth_email_message' => wp_kses_post(isset($input['auth_email_message']) ? $input['auth_email_message'] : $existing['auth_email_message']),
+            'auth_email_button' => sanitize_text_field(isset($input['auth_email_button']) ? $input['auth_email_button'] : $existing['auth_email_button']),
+            'auth_email_footer' => sanitize_text_field(isset($input['auth_email_footer']) ? $input['auth_email_footer'] : $existing['auth_email_footer']),
         );
     }
 
@@ -365,7 +423,7 @@ final class EasyHeadless_Publication
             $source = sanitize_key(isset($section['source']) ? $section['source'] : $source_default);
             $layout = sanitize_key(isset($section['layout']) ? $section['layout'] : $definition['layout']);
             $output[$key]['title'] = sanitize_text_field(isset($section['title']) ? $section['title'] : $definition['title']);
-            $output[$key]['category_id'] = absint(isset($section['category_id']) ? $section['category_id'] : 0);
+            $output[$key]['category_id'] = absint(isset($section['category_id']) ? $section['category_id'] : $output[$key]['category_id']);
             $output[$key]['post_ids'] = self::sanitize_ids(isset($section['post_ids']) ? $section['post_ids'] : array());
             $output[$key]['source'] = in_array($source, array('latest', 'popular', 'category'), true) ? $source : $output[$key]['source'];
             $output[$key]['layout'] = in_array($layout, array('rail', 'lead', 'feature', 'portrait', 'editorial-rail', 'portrait-rail'), true) ? $layout : $definition['layout'];
@@ -383,26 +441,73 @@ final class EasyHeadless_Publication
     public static function register_post_meta_box()
     {
         if (self::enabled()) {
-            add_meta_box('easyheadless-publication-access', 'Film Efiko Reader Access', array(__CLASS__, 'render_post_meta_box'), 'post', 'side', 'high');
+            add_meta_box('easyheadless-publication-access', 'Publication', array(__CLASS__, 'render_post_meta_box'), 'post', 'side', 'high');
         }
     }
 
     public static function render_post_meta_box($post)
     {
+        wp_enqueue_style('easyheadless-publication-editor', plugins_url('../assets/publication-editor.css', __FILE__), array(), EASYHEADLESS_VERSION);
+        wp_enqueue_script('easyheadless-publication-editor', plugins_url('../assets/publication-editor.js', __FILE__), array(), EASYHEADLESS_VERSION, true);
         wp_nonce_field('easyheadless_publication_access', 'easyheadless_publication_nonce');
         $access = get_post_meta($post->ID, self::META_ACCESS, true) ?: 'public';
-        $paragraphs = absint(get_post_meta($post->ID, self::META_PREVIEW_PARAGRAPHS, true)) ?: 2;
+        $stored_paragraphs = get_post_meta($post->ID, self::META_PREVIEW_PARAGRAPHS, true);
+        $paragraphs = '' === $stored_paragraphs ? 2 : absint($stored_paragraphs);
         $message = get_post_meta($post->ID, self::META_GATE_MESSAGE, true);
         $presentation_style = self::sanitize_presentation_style(get_post_meta($post->ID, self::META_PRESENTATION_STYLE, true), 'inherit');
         $issue_id = absint(get_post_meta($post->ID, self::META_ISSUE_ID, true));
-        $issues = get_posts(array('post_type' => self::ISSUE_TYPE, 'post_status' => array('publish', 'draft', 'future', 'private'), 'numberposts' => -1, 'orderby' => 'date', 'order' => 'DESC'));
+        $issues = get_posts(array('post_type' => self::ISSUE_TYPE, 'post_status' => array('publish', 'draft', 'pending', 'future', 'private'), 'numberposts' => -1, 'orderby' => 'date', 'order' => 'DESC'));
         ?>
-        <p><label for="eh-access"><strong>Who can read the full story?</strong></label><br>
-            <select id="eh-access" name="easyheadless_access" style="width:100%"><option value="public" <?php selected($access, 'public'); ?>>Everyone</option><option value="members" <?php selected($access, 'members'); ?>>Verified email readers</option></select></p>
-        <p><label for="eh-preview">Preview paragraphs</label><br><input id="eh-preview" type="number" min="0" max="20" name="easyheadless_preview_paragraphs" value="<?php echo esc_attr($paragraphs); ?>" style="width:100%"></p>
-        <p><label for="eh-gate-message">Gate message</label><br><textarea id="eh-gate-message" name="easyheadless_gate_message" rows="4" style="width:100%"><?php echo esc_textarea($message); ?></textarea></p>
-        <p><label for="eh-presentation-style"><strong>Story presentation</strong></label><br><select id="eh-presentation-style" name="easyheadless_presentation_style" style="width:100%"><option value="inherit" <?php selected($presentation_style, 'inherit'); ?>>Inherit from category</option><option value="nation" <?php selected($presentation_style, 'nation'); ?>>Nation / standard</option><option value="new-yorker" <?php selected($presentation_style, 'new-yorker'); ?>>New Yorker inspired</option></select></p>
-        <p><label for="eh-issue"><strong>Cover / issue</strong></label><br><select id="eh-issue" name="easyheadless_issue_id" style="width:100%"><option value="0">Not assigned to an issue</option><?php foreach ($issues as $issue) : ?><option value="<?php echo esc_attr($issue->ID); ?>" <?php selected($issue_id, $issue->ID); ?>><?php echo esc_html(get_the_title($issue)); ?></option><?php endforeach; ?></select><span class="description">Assigned stories appear in this cover's table of contents.</span></p>
+        <div class="eh-publication-editor" data-eh-publication-editor>
+            <p class="eh-publication-editor__intro">Manage this story's edition, layout and readership.</p>
+            <fieldset class="eh-publication-editor__section">
+                <legend>Magazine issue</legend>
+                <div data-eh-issue-search-wrap hidden>
+                    <label for="eh-issue-search">Find an issue</label>
+                    <input id="eh-issue-search" type="search" placeholder="Search title or volume…" autocomplete="off" aria-controls="eh-issue" data-eh-issue-search>
+                </div>
+                <label for="eh-issue">Assigned issue</label>
+                <select id="eh-issue" name="easyheadless_issue_id" data-eh-issue-select aria-describedby="eh-issue-help">
+                    <option value="0">Not assigned to an issue</option>
+                    <?php foreach ($issues as $issue) :
+                        $volume = sanitize_text_field(get_post_meta($issue->ID, self::ISSUE_META_VOLUME, true));
+                        $date = sanitize_text_field(get_post_meta($issue->ID, self::ISSUE_META_DATE, true));
+                        $cover = get_the_post_thumbnail_url($issue, 'medium') ?: '';
+                        $title = get_the_title($issue);
+                        $status = 'publish' === $issue->post_status ? 'Published' : ucfirst($issue->post_status);
+                        ?>
+                        <option value="<?php echo esc_attr($issue->ID); ?>" data-title="<?php echo esc_attr($title); ?>" data-volume="<?php echo esc_attr($volume); ?>" data-date="<?php echo esc_attr($date); ?>" data-cover="<?php echo esc_url($cover); ?>" data-status="<?php echo esc_attr($status); ?>" <?php selected($issue_id, $issue->ID); ?>><?php echo esc_html($title . ('publish' !== $issue->post_status ? ' (' . $status . ')' : '')); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <p class="eh-publication-editor__hint" data-eh-issue-search-status role="status" aria-live="polite"></p>
+                <div class="eh-publication-editor__issue" data-eh-issue-preview hidden aria-live="polite">
+                    <img data-eh-issue-cover alt="" hidden>
+                    <div><strong data-eh-issue-title></strong><span data-eh-issue-detail></span></div>
+                </div>
+                <p id="eh-issue-help" class="eh-publication-editor__hint">Choose an edition to include this story in its table of contents. The volume is managed on the issue.</p>
+                <a class="eh-publication-editor__link" href="<?php echo esc_url(admin_url('edit.php?post_type=' . self::ISSUE_TYPE)); ?>" target="_blank" rel="noopener noreferrer">Manage issues <span class="screen-reader-text">(opens in a new tab)</span><span aria-hidden="true">↗</span></a>
+            </fieldset>
+            <fieldset class="eh-publication-editor__section">
+                <legend>Presentation</legend>
+                <label for="eh-presentation-style">Article layout</label>
+                <select id="eh-presentation-style" name="easyheadless_presentation_style" data-eh-presentation aria-describedby="eh-presentation-help"><option value="inherit" <?php selected($presentation_style, 'inherit'); ?>>Inherit from category</option><option value="nation" <?php selected($presentation_style, 'nation'); ?>>Standard</option><option value="new-yorker" <?php selected($presentation_style, 'new-yorker'); ?>>New Yorker inspired</option></select>
+                <p id="eh-presentation-help" class="eh-publication-editor__hint" data-eh-presentation-help>Use the category's layout, or choose a layout for this article only.</p>
+            </fieldset>
+            <fieldset class="eh-publication-editor__section">
+                <legend>Reader access</legend>
+                <label for="eh-access">Who can read the full story?</label>
+                <select id="eh-access" name="easyheadless_access" data-eh-reader-access><option value="public" <?php selected($access, 'public'); ?>>Everyone</option><option value="members" <?php selected($access, 'members'); ?>>Verified email readers</option></select>
+                <p class="eh-publication-editor__hint">Restrict the full story only when email verification is required.</p>
+                <div class="eh-publication-editor__restricted" data-eh-restricted-fields>
+                    <label for="eh-preview">Preview paragraphs</label>
+                    <input id="eh-preview" type="number" min="0" max="20" name="easyheadless_preview_paragraphs" value="<?php echo esc_attr($paragraphs); ?>">
+                    <p class="eh-publication-editor__hint">How much readers can see before signing in.</p>
+                    <label for="eh-gate-message">Sign-in message</label>
+                    <textarea id="eh-gate-message" name="easyheadless_gate_message" rows="3" placeholder="Optional message for readers"><?php echo esc_textarea($message); ?></textarea>
+                </div>
+            </fieldset>
+            <p class="eh-publication-editor__save">Save or update the post to apply these settings.</p>
+        </div>
         <?php
     }
 
@@ -436,11 +541,33 @@ final class EasyHeadless_Publication
         $volume = get_post_meta($post->ID, self::ISSUE_META_VOLUME, true);
         $featured = absint(get_post_meta($post->ID, self::ISSUE_META_FEATURED_STORY, true));
         $related = self::sanitize_ids(get_post_meta($post->ID, self::ISSUE_META_RELATED_STORIES, true));
+        wp_enqueue_script('easyheadless-issue-picker', plugins_url('../assets/publication-issue-picker.js', __FILE__), array('wp-api-fetch'), EASYHEADLESS_VERSION, true);
         ?>
         <p><label for="eh-issue-date"><strong>Issue date</strong></label><br><input id="eh-issue-date" name="easyheadless_issue_date" type="date" value="<?php echo esc_attr($date); ?>" style="width:100%"></p>
         <p><label for="eh-issue-volume"><strong>Volume label</strong></label><br><input id="eh-issue-volume" name="easyheadless_issue_volume" type="text" value="<?php echo esc_attr($volume); ?>" placeholder="Volume 1" style="width:100%"><span class="description">Shown beneath the cover in the public archive.</span></p>
-        <p><label for="eh-featured-story"><strong>Featured story ID</strong></label><br><input id="eh-featured-story" name="easyheadless_featured_story" type="number" min="0" value="<?php echo esc_attr($featured); ?>" style="width:100%"></p>
-        <p><label for="eh-related-stories"><strong>Related story IDs</strong></label><br><textarea id="eh-related-stories" name="easyheadless_related_stories" rows="4" style="width:100%"><?php echo esc_textarea(implode(', ', $related)); ?></textarea><span class="description">Comma-separated post IDs. Set the issue cover using Featured Image.</span></p>
+        <?php self::render_issue_story_picker('easyheadless_featured_story', 'Featured article', $featured ? array($featured) : array(), false); ?>
+        <?php self::render_issue_story_picker('easyheadless_related_stories', 'Articles in this issue', $related, true); ?>
+        <p class="description">Search articles by title, select them and save the issue. Set the cover using Featured Image. Articles can appear in more than one issue.</p>
+        <?php
+    }
+
+    private static function render_issue_story_picker($name, $label, $ids, $multiple)
+    {
+        $items = array();
+        foreach ($ids as $id) {
+            $story = get_post($id);
+            if ($story && 'post' === $story->post_type) {
+                $items[] = array('id' => $id, 'title' => get_the_title($story));
+            }
+        }
+        ?>
+        <div class="eh-issue-story-picker" data-multiple="<?php echo $multiple ? '1' : '0'; ?>" data-selected="<?php echo esc_attr(wp_json_encode($items)); ?>">
+            <p><label><strong><?php echo esc_html($label); ?></strong><input class="widefat eh-issue-search" type="search" placeholder="Search article titles" autocomplete="off"></label></p>
+            <input class="eh-issue-selection" type="hidden" name="<?php echo esc_attr($name); ?>" value="<?php echo esc_attr(implode(', ', $ids)); ?>">
+            <p class="eh-issue-search-status" role="status" aria-live="polite"></p>
+            <ul class="eh-issue-search-results" aria-label="Matching articles"></ul>
+            <ul class="eh-issue-selected" aria-label="Selected articles"></ul>
+        </div>
         <?php
     }
 
@@ -471,7 +598,8 @@ final class EasyHeadless_Publication
         }
         $settings = wp_parse_args(get_option(self::OPTION_SETTINGS, array()), self::default_settings());
         ?>
-        <div class="wrap"><h1>EasyHeadless Publication</h1><p>Turn WordPress into the publishing and reader-management centre for an editorial website. Existing EasyHeadless APIs are not changed.</p>
+        <?php EasyHeadless_Admin::open_module_page('Publication', 'Manage editorial settings, reader access and publication integrations.', 'publication'); ?>
+        <section class="eh-card">
         <form method="post" action="options.php"><?php settings_fields('easyheadless_publication'); ?>
         <table class="form-table" role="presentation">
             <tr><th scope="row">Publication module</th><td><label><input type="hidden" name="<?php echo esc_attr(self::OPTION_ENABLED); ?>" value="0"><input type="checkbox" name="<?php echo esc_attr(self::OPTION_ENABLED); ?>" value="1" <?php checked(self::enabled()); ?>> Enabled</label><p class="description">Enabled by default. Switch off if publication features are not needed.</p></td></tr>
@@ -484,7 +612,12 @@ final class EasyHeadless_Publication
             <?php self::settings_input('social_instagram', 'Instagram URL', $settings, 'url'); ?>
             <?php self::settings_input('social_x', 'X / Twitter URL', $settings, 'url'); ?>
             <tr><th scope="row"><label for="eh-newsletter-provider">Newsletter provider</label></th><td><select id="eh-newsletter-provider" name="<?php echo esc_attr(self::OPTION_SETTINGS); ?>[newsletter_provider]"><option value="wordpress" <?php selected($settings['newsletter_provider'], 'wordpress'); ?>>WordPress storage</option><option value="mailchimp" <?php selected($settings['newsletter_provider'], 'mailchimp'); ?>>Mailchimp adapter</option><option value="brevo" <?php selected($settings['newsletter_provider'], 'brevo'); ?>>Brevo adapter</option></select><p class="description">Contacts are always stored in WordPress; a provider can be connected later.</p></td></tr>
-        </table><?php submit_button('Save publication settings'); ?></form></div>
+            <tr><th colspan="2"><h2>Reader sign-in email</h2><p class="description">Single-use links expire after 10 minutes. Configure the frontend URL to use the /login/magic confirmation page. Leave it blank to use Site & URLs. Tokens are never shown in API responses.</p></th></tr>
+            <?php foreach (array('auth_frontend_url' => 'Sign-in frontend URL', 'auth_logo_url' => 'Email logo URL') as $key => $label) { self::settings_input($key, $label, $settings, 'url'); } ?>
+            <?php foreach (array('auth_brand_name' => 'Publication name', 'auth_email_subject' => 'Email subject', 'auth_email_heading' => 'Email heading', 'auth_email_button' => 'Button label', 'auth_email_footer' => 'Email footer') as $key => $label) { self::settings_input($key, $label, $settings, 'text'); } ?>
+            <tr><th scope="row"><label for="eh-auth-message">Email message</label></th><td><?php wp_editor($settings['auth_email_message'], 'eh-auth-message', array('textarea_name' => self::OPTION_SETTINGS . '[auth_email_message]', 'media_buttons' => false, 'textarea_rows' => 6)); ?><p class="description">Subject, heading and message support {site_name}, {email} and {expires_minutes}. The branded template always includes the secure button, expiry notice and fallback link.</p></td></tr>
+        </table><?php submit_button('Save publication settings'); ?></form></section>
+        <?php EasyHeadless_Admin::close_module_page(); ?>
         <?php
     }
 
@@ -505,7 +638,8 @@ final class EasyHeadless_Publication
         $categories = get_categories(array('hide_empty' => false));
         $sections = self::section_definitions();
         ?>
-        <div class="wrap"><h1>Homepage Sections</h1><p>Control the name, content source, presentation, order and visibility of each homepage section. Selected stories always appear first and the chosen source fills remaining positions.</p>
+        <?php EasyHeadless_Admin::open_module_page('Homepage Sections', 'Control the content, presentation, order and visibility of homepage sections.', 'homepage-sections'); ?>
+        <section class="eh-card">
         <form method="post" action="options.php"><?php settings_fields('easyheadless_publication_curation'); ?>
         <table class="form-table" role="presentation"><tr><th scope="row">Hero story</th><td><select name="<?php echo esc_attr(self::OPTION_CURATION); ?>[hero_id]"><option value="0">Latest story automatically</option><?php foreach ($posts as $post) : ?><option value="<?php echo esc_attr($post->ID); ?>" <?php selected($curation['hero_id'], $post->ID); ?>><?php echo esc_html($post->post_title); ?></option><?php endforeach; ?></select></td></tr>
         <tr><th scope="row">Supporting stories</th><td><input class="regular-text" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[support_ids]" value="<?php echo esc_attr(implode(', ', $curation['support_ids'])); ?>"><p class="description">Up to three post IDs, comma separated. Missing positions use the latest stories.</p></td></tr></table>
@@ -519,8 +653,9 @@ final class EasyHeadless_Publication
             <tr><th>Stories and position</th><td><label>Number of stories <input type="number" min="1" max="12" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][count]" value="<?php echo esc_attr($value['count']); ?>" style="width:70px"></label>&nbsp;&nbsp;<label>Homepage position <input type="number" min="0" max="100" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][order]" value="<?php echo esc_attr($value['order']); ?>" style="width:70px"></label></td></tr>
             <tr><th>Custom link</th><td><input class="regular-text" type="text" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][href]" value="<?php echo esc_attr($value['href']); ?>" placeholder="/a-page or https://example.com"><p class="description">Optional. Leave blank to link to the selected category or the section’s normal archive.</p></td></tr>
             <?php if ('spotlight' === $key) : ?><tr><th>Active dates</th><td><input type="date" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[spotlight][start_date]" value="<?php echo esc_attr($value['start_date']); ?>"> to <input type="date" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[spotlight][end_date]" value="<?php echo esc_attr($value['end_date']); ?>"></td></tr><?php endif; ?>
-            <tr><th>Selected stories</th><td><input class="regular-text" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][post_ids]" value="<?php echo esc_attr(implode(', ', isset($value['post_ids']) ? $value['post_ids'] : array())); ?>"><p class="description">Post IDs, comma separated. Selected stories come first; automatic stories fill the rest.</p></td></tr></table>
-        <?php endforeach; ?><?php submit_button('Save homepage curation'); ?></form></div>
+            <tr><th>Selected stories</th><td><input class="regular-text" name="<?php echo esc_attr(self::OPTION_CURATION); ?>[<?php echo esc_attr($key); ?>][post_ids]" value="<?php echo esc_attr(implode(', ', isset($value['post_ids']) ? $value['post_ids'] : array())); ?>"><p class="description">Post IDs, comma separated. When selected, these stories are shown exactly. Leave blank to use the selected automatic source.</p></td></tr></table>
+        <?php endforeach; ?><?php submit_button('Save homepage curation'); ?></form></section>
+        <?php EasyHeadless_Admin::close_module_page(); ?>
         <?php
     }
 
@@ -539,6 +674,7 @@ final class EasyHeadless_Publication
             'biz' => array('title' => 'Biz', 'count' => 5, 'layout' => 'lead'),
             'features' => array('title' => 'Features', 'count' => 4, 'layout' => 'rail'),
             'the-cover' => array('title' => 'The Cover', 'count' => 5, 'layout' => 'portrait-rail'),
+            'lists' => array('title' => 'Lists', 'count' => 4, 'layout' => 'rail'),
         );
     }
 
@@ -552,9 +688,11 @@ final class EasyHeadless_Publication
         $where = $search ? $wpdb->prepare(' WHERE email LIKE %s', '%' . $wpdb->esc_like($search) . '%') : '';
         $rows = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}eh_publication_contacts{$where} ORDER BY updated_at DESC LIMIT 500"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         ?>
-        <div class="wrap"><h1>Readers & Contacts</h1><form method="get"><input type="hidden" name="page" value="easyheadless-publication-contacts"><p class="search-box"><label class="screen-reader-text" for="contact-search">Search contacts</label><input id="contact-search" name="s" value="<?php echo esc_attr($search); ?>"><button class="button">Search</button></p></form>
+        <?php EasyHeadless_Admin::open_module_page('Readers & Contacts', 'Manage verified readers, newsletter consent and contact exports.', 'readers'); ?>
+        <div class="eh-card"><form method="get"><input type="hidden" name="page" value="easyheadless-publication-contacts"><p class="search-box"><label class="screen-reader-text" for="contact-search">Search contacts</label><input id="contact-search" name="s" value="<?php echo esc_attr($search); ?>"><button class="button">Search</button></p></form>
         <p><a class="button button-primary" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=easyheadless_publication_export'), 'easyheadless_publication_export')); ?>">Export CSV</a></p>
         <table class="widefat striped"><thead><tr><th>Email</th><th>Verified</th><th>Newsletter</th><th>Source story</th><th>Updated</th><th></th></tr></thead><tbody><?php if (!$rows) : ?><tr><td colspan="6">No contacts found.</td></tr><?php endif; foreach ($rows as $row) : ?><tr><td><?php echo esc_html($row->email); ?></td><td><?php echo esc_html($row->verified_at ?: '—'); ?></td><td><?php echo $row->newsletter_consent ? 'Yes' : 'No'; ?></td><td><?php echo esc_html($row->source_article ?: '—'); ?></td><td><?php echo esc_html($row->updated_at); ?></td><td><a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=easyheadless_publication_delete_contact&id=' . absint($row->id)), 'easyheadless_publication_delete_contact_' . absint($row->id))); ?>" onclick="return confirm('Delete this contact and revoke their sessions?')">Delete</a></td></tr><?php endforeach; ?></tbody></table></div>
+        <?php EasyHeadless_Admin::close_module_page(); ?>
         <?php
     }
 
@@ -602,6 +740,8 @@ final class EasyHeadless_Publication
 
     public static function register_routes()
     {
+        require_once __DIR__ . '/class-easyheadless-publication-issues.php';
+        EasyHeadless_Publication_Issues::register_routes();
         $namespace = 'easyheadless/v1/publication';
         register_rest_route($namespace, '/homepage', array('methods' => WP_REST_Server::READABLE, 'callback' => array(__CLASS__, 'get_homepage'), 'permission_callback' => array(__CLASS__, 'public_permission')));
         register_rest_route($namespace, '/settings', array('methods' => WP_REST_Server::READABLE, 'callback' => array(__CLASS__, 'get_public_settings'), 'permission_callback' => array(__CLASS__, 'public_permission')));
@@ -615,6 +755,8 @@ final class EasyHeadless_Publication
         register_rest_route($namespace, '/views', array('methods' => WP_REST_Server::CREATABLE, 'callback' => array(__CLASS__, 'record_view'), 'permission_callback' => array(__CLASS__, 'frontend_permission')));
         register_rest_route($namespace, '/auth/request-code', array('methods' => WP_REST_Server::CREATABLE, 'callback' => array(__CLASS__, 'request_code'), 'permission_callback' => array(__CLASS__, 'frontend_permission')));
         register_rest_route($namespace, '/auth/verify-code', array('methods' => WP_REST_Server::CREATABLE, 'callback' => array(__CLASS__, 'verify_code'), 'permission_callback' => array(__CLASS__, 'frontend_permission')));
+        register_rest_route($namespace, '/auth/request-link', array('methods' => WP_REST_Server::CREATABLE, 'callback' => array(__CLASS__, 'request_magic_link'), 'permission_callback' => array(__CLASS__, 'frontend_permission')));
+        register_rest_route($namespace, '/auth/verify-link', array('methods' => WP_REST_Server::CREATABLE, 'callback' => array(__CLASS__, 'verify_magic_link'), 'permission_callback' => array(__CLASS__, 'frontend_permission')));
         register_rest_route($namespace, '/auth/logout', array('methods' => WP_REST_Server::CREATABLE, 'callback' => array(__CLASS__, 'logout'), 'permission_callback' => array(__CLASS__, 'session_permission')));
         register_rest_route($namespace, '/account', array('methods' => WP_REST_Server::READABLE, 'callback' => array(__CLASS__, 'get_account'), 'permission_callback' => array(__CLASS__, 'session_permission')));
         register_rest_route($namespace, '/account', array('methods' => WP_REST_Server::EDITABLE, 'callback' => array(__CLASS__, 'update_account'), 'permission_callback' => array(__CLASS__, 'session_permission')));
@@ -698,6 +840,10 @@ final class EasyHeadless_Publication
             $category_id = isset($value['category_id']) ? absint($value['category_id']) : 0;
             $source = in_array($value['source'], array('latest', 'popular', 'category'), true) ? $value['source'] : ('hot-hot' === $key ? 'popular' : 'latest');
             $source_category_id = 'category' === $source ? $category_id : 0;
+            // A missing category must not turn a category-only section into a latest-post feed.
+            if ('category' === $source && !$source_category_id) {
+                continue;
+            }
             $category = $source_category_id ? get_term($source_category_id, 'category') : null;
             $title = trim((string) $value['title']);
             if ('' === $title) {
@@ -705,7 +851,10 @@ final class EasyHeadless_Publication
             }
             $count = min(12, max(1, absint($value['count'])));
             $layout = in_array($value['layout'], array('rail', 'lead', 'feature', 'portrait', 'editorial-rail', 'portrait-rail'), true) ? $value['layout'] : $definition['layout'];
-            $stories = self::curated_stories(isset($value['post_ids']) ? $value['post_ids'] : array(), $source_category_id, $count, $used, 'popular' === $source);
+            // Lists may overlap earlier sections; don't hide its only story through deduplication.
+            $section_used = 'lists' === $key ? array() : $used;
+            $stories = self::curated_stories(isset($value['post_ids']) ? $value['post_ids'] : array(), $source_category_id, $count, $section_used, 'popular' === $source);
+            $used = array_values(array_unique(array_merge($used, $section_used)));
             $sections[] = array(
                 'key' => $key,
                 'title' => $title,
@@ -717,7 +866,7 @@ final class EasyHeadless_Publication
             );
         }
         $settings = wp_parse_args(get_option(self::OPTION_SETTINGS, array()), self::default_settings());
-        return rest_ensure_response(array('hero' => $hero, 'supporting' => $supporting, 'sections' => $sections, 'donationUrl' => $settings['donation_url'], 'social' => array('facebook' => $settings['social_facebook'], 'instagram' => $settings['social_instagram'], 'x' => $settings['social_x'])));
+        return rest_ensure_response(array('hero' => $hero, 'supporting' => $supporting, 'sections' => $sections, 'availableSections' => array_keys(self::section_definitions()), 'donationUrl' => $settings['donation_url'], 'social' => array('facebook' => $settings['social_facebook'], 'instagram' => $settings['social_instagram'], 'x' => $settings['social_x'])));
     }
 
     public static function get_public_settings()
@@ -755,7 +904,8 @@ final class EasyHeadless_Publication
     private static function curated_stories($ids, $category_id, $count, &$used, $popular = false)
     {
         $stories = array();
-        foreach (self::sanitize_ids($ids) as $id) {
+        $selected_ids = self::sanitize_ids($ids);
+        foreach ($selected_ids as $id) {
             if (count($stories) >= $count || in_array($id, $used, true)) {
                 continue;
             }
@@ -766,11 +916,24 @@ final class EasyHeadless_Publication
             }
         }
         if (count($stories) < $count) {
+            $remaining = $count - count($stories);
             $args = $category_id ? array('cat' => $category_id) : array();
             if ($popular) {
-                $args += array('meta_key' => self::META_VIEWS, 'orderby' => array('meta_value_num' => 'DESC', 'date' => 'DESC'));
+                $args += array(
+                    'meta_key' => self::META_VIEWS,
+                    'orderby' => array('meta_value_num' => 'DESC', 'date' => 'DESC'),
+                    'date_query' => array(array('after' => '7 days ago', 'inclusive' => true)),
+                );
             }
-            $fill = self::query_stories($args, $count - count($stories), $used);
+            // Tier 2: most viewed stories published in the last seven days.
+            $fill = self::query_stories($args, $remaining, $used);
+            // Tier 3: random published stories complete the rail when there
+            // are not enough recent view-ranked stories.
+            if ($popular && count($fill) < $remaining) {
+                $random_args = $category_id ? array('cat' => $category_id) : array();
+                $random_args['orderby'] = 'rand';
+                $fill = array_merge($fill, self::query_stories($random_args, $remaining - count($fill), array_merge($used, wp_list_pluck($fill, 'id'))));
+            }
             foreach ($fill as $story) {
                 $stories[] = $story;
                 $used[] = $story['id'];
@@ -809,7 +972,7 @@ final class EasyHeadless_Publication
             }
         }
         $access = get_post_meta($post->ID, self::META_ACCESS, true) ?: 'public';
-        $content = apply_filters('the_content', $post->post_content);
+        $content = EasyHeadless_Publication_Content::render($post);
         $preview_count = absint(get_post_meta($post->ID, self::META_PREVIEW_PARAGRAPHS, true)) ?: 2;
         $preview = self::preview_html($content, $preview_count);
         $payload = array(
@@ -983,6 +1146,7 @@ final class EasyHeadless_Publication
             'volume' => sanitize_text_field(get_post_meta($post->ID, self::ISSUE_META_VOLUME, true)),
             'cover' => get_the_post_thumbnail_url($post, 'full') ?: '',
             'description' => apply_filters('the_content', $post->post_content),
+            'excerpt' => wp_strip_all_tags((string) $post->post_excerpt),
             'href' => '/issues/' . $post->post_name,
             'categories' => array_values(array_map(function ($term) {
                 return array('id' => $term->term_id, 'name' => $term->name, 'slug' => $term->slug);
@@ -1004,6 +1168,11 @@ final class EasyHeadless_Publication
 
     public static function request_code($request)
     {
+        return self::request_magic_link($request);
+    }
+
+    public static function request_magic_link($request)
+    {
         global $wpdb;
         $email = sanitize_email($request->get_param('email'));
         if (!$email || !is_email($email)) {
@@ -1014,33 +1183,59 @@ final class EasyHeadless_Publication
         $since = gmdate('Y-m-d H:i:s', time() - 15 * MINUTE_IN_SECONDS);
         $recent = absint($wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->prefix}eh_publication_codes WHERE (email = %s OR request_ip = %s) AND created_at >= %s", $email, $ip, $since)));
         if ($recent >= 5) {
-            return new WP_Error('publication_rate_limited', 'Too many code requests. Try again in 15 minutes.', array('status' => 429));
+            return new WP_Error('publication_rate_limited', 'Too many sign-in requests. Try again in 15 minutes.', array('status' => 429));
         }
-        $code = (string) wp_rand(100000, 999999);
-        $wpdb->insert($wpdb->prefix . 'eh_publication_codes', array('email' => $email, 'code_hash' => wp_hash_password($code), 'request_ip' => $ip, 'attempts' => 0, 'expires_at' => gmdate('Y-m-d H:i:s', time() + self::CODE_MINUTES * MINUTE_IN_SECONDS), 'created_at' => current_time('mysql', true)), array('%s', '%s', '%s', '%d', '%s', '%s'));
-        $sent = wp_mail($email, 'Your Film Efiko sign-in code', "Your Film Efiko verification code is {$code}. It expires in 10 minutes.\n\nIf you did not request this code, you can ignore this message.");
+        $settings = wp_parse_args(get_option(self::OPTION_SETTINGS, array()), self::default_settings());
+        $profile = EasyHeadless_Modules::site_profile();
+        $frontend = !empty($settings['auth_frontend_url']) ? $settings['auth_frontend_url'] : $profile['frontend_url'];
+        $parts = wp_parse_url($frontend);
+        if (!$parts || empty($parts['host']) || !in_array($parts['scheme'] ?? '', array('http', 'https'), true) || !empty($parts['user']) || !empty($parts['pass']) || !empty($parts['query']) || !empty($parts['fragment'])) {
+            return new WP_Error('publication_frontend_missing', 'The reader sign-in URL has not been configured.', array('status' => 503));
+        }
+        $token = wp_generate_password(64, false, false);
+        $redirect = self::safe_reader_redirect($request->get_param('redirect'));
+        $link = rtrim($frontend, '/') . '/login/magic#' . http_build_query(array('token' => $token, 'email' => $email, 'redirect' => $redirect), '', '&', PHP_QUERY_RFC3986);
+        $inserted = $wpdb->insert($wpdb->prefix . 'eh_publication_codes', array('email' => $email, 'code_hash' => wp_hash_password($token), 'request_ip' => $ip, 'attempts' => 0, 'expires_at' => gmdate('Y-m-d H:i:s', time() + self::CODE_MINUTES * MINUTE_IN_SECONDS), 'created_at' => current_time('mysql', true)), array('%s', '%s', '%s', '%d', '%s', '%s'));
+        if (!$inserted) {
+            return new WP_Error('publication_storage_failed', 'Sign-in is temporarily unavailable.', array('status' => 503));
+        }
+        $row_id = $wpdb->insert_id;
+        $replacements = array('{site_name}' => $settings['auth_brand_name'], '{email}' => $email, '{expires_minutes}' => (string) self::CODE_MINUTES);
+        $subject = sanitize_text_field(strtr($settings['auth_email_subject'], $replacements));
+        $sent = wp_mail($email, $subject, self::render_magic_link_email($settings, $email, $link), array('Content-Type: text/html; charset=UTF-8'));
         if (!$sent) {
+            $wpdb->delete($wpdb->prefix . 'eh_publication_codes', array('id' => $row_id), array('%d'));
             return new WP_Error('publication_email_failed', 'The sign-in email could not be sent. Please try again.', array('status' => 503));
         }
-        $response = array('sent' => true, 'expiresIn' => self::CODE_MINUTES * MINUTE_IN_SECONDS);
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            $response['debugCode'] = $code;
-        }
+        $response = array('sent' => true, 'method' => 'magic-link', 'expiresIn' => self::CODE_MINUTES * MINUTE_IN_SECONDS);
         return rest_ensure_response($response);
     }
 
     public static function verify_code($request)
     {
+        return self::verify_magic_link($request);
+    }
+
+    public static function verify_magic_link($request)
+    {
         global $wpdb;
         $email = sanitize_email($request->get_param('email'));
-        $code = preg_replace('/\D+/', '', (string) $request->get_param('code'));
-        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}eh_publication_codes WHERE email = %s ORDER BY created_at DESC LIMIT 1", $email));
-        if (!$row || strtotime($row->expires_at . ' UTC') < time() || absint($row->attempts) >= 5) {
-            return new WP_Error('publication_code_expired', 'That code has expired. Request a new one.', array('status' => 400));
+        $code = (string) $request->get_param('token');
+        if (!is_email($email) || !preg_match('/^[a-zA-Z0-9]{64}$/D', $code)) {
+            return new WP_Error('publication_link_invalid', 'This sign-in link is invalid. Request a new link.', array('status' => 400));
+        }
+        $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}eh_publication_codes WHERE email = %s ORDER BY created_at DESC, id DESC LIMIT 1", $email));
+        if (!$row || strtotime($row->expires_at . ' UTC') <= time() || absint($row->attempts) >= 5) {
+            return new WP_Error('publication_link_expired', 'This link has expired or was already used. Request a new link.', array('status' => 400));
         }
         if (!wp_check_password($code, $row->code_hash)) {
             $wpdb->update($wpdb->prefix . 'eh_publication_codes', array('attempts' => absint($row->attempts) + 1), array('id' => $row->id), array('%d'), array('%d'));
-            return new WP_Error('publication_code_invalid', 'That code is not valid.', array('status' => 400));
+            return new WP_Error('publication_link_invalid', 'This sign-in link is invalid. Request a new link.', array('status' => 400));
+        }
+        // Claim the token atomically, so simultaneous clicks cannot create multiple sessions.
+        $claimed = $wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->prefix}eh_publication_codes WHERE id = %d AND code_hash = %s AND expires_at > %s", $row->id, $row->code_hash, current_time('mysql', true)));
+        if (1 !== $claimed) {
+            return new WP_Error('publication_link_expired', 'This link has expired or was already used. Request a new link.', array('status' => 400));
         }
         $user = get_user_by('email', $email);
         if (!$user) {
@@ -1058,10 +1253,35 @@ final class EasyHeadless_Publication
         $now = current_time('mysql', true);
         $source = sanitize_title($request->get_param('source_article'));
         self::upsert_contact($email, array('verified_at' => $now, 'source_article' => $source));
-        $wpdb->delete($wpdb->prefix . 'eh_publication_codes', array('email' => $email), array('%s'));
         $token = wp_generate_password(64, false, false);
-        $wpdb->insert($wpdb->prefix . 'eh_publication_sessions', array('user_id' => $user->ID, 'token_hash' => hash('sha256', $token), 'expires_at' => gmdate('Y-m-d H:i:s', time() + self::SESSION_DAYS * DAY_IN_SECONDS), 'created_at' => $now), array('%d', '%s', '%s', '%s'));
+        if (!$wpdb->insert($wpdb->prefix . 'eh_publication_sessions', array('user_id' => $user->ID, 'token_hash' => hash('sha256', $token), 'expires_at' => gmdate('Y-m-d H:i:s', time() + self::SESSION_DAYS * DAY_IN_SECONDS), 'created_at' => $now), array('%d', '%s', '%s', '%s'))) {
+            return new WP_Error('publication_storage_failed', 'Sign-in is temporarily unavailable. Request a new link.', array('status' => 503));
+        }
         return rest_ensure_response(array('session_token' => $token, 'expiresIn' => self::SESSION_DAYS * DAY_IN_SECONDS, 'account' => array('email' => $email)));
+    }
+
+    public static function safe_reader_redirect($path)
+    {
+        $path = (string) $path;
+        if (preg_match('~^/(?:account|stories/[a-zA-Z0-9-]+)/?$~D', $path)) {
+            return $path;
+        }
+        return '/account';
+    }
+
+    public static function render_magic_link_email($settings, $email, $link)
+    {
+        $replacements = array('{site_name}' => esc_html($settings['auth_brand_name']), '{email}' => esc_html($email), '{expires_minutes}' => (string) self::CODE_MINUTES);
+        $heading = esc_html(strtr($settings['auth_email_heading'], array('{site_name}' => $settings['auth_brand_name'], '{email}' => $email, '{expires_minutes}' => (string) self::CODE_MINUTES)));
+        $message = wpautop(wp_kses_post(strtr($settings['auth_email_message'], $replacements)));
+        $brand = esc_html($settings['auth_brand_name']);
+        $button = esc_html($settings['auth_email_button']);
+        $footer = esc_html($settings['auth_email_footer']);
+        $url = esc_url($link);
+        $logo = !empty($settings['auth_logo_url']) ? '<img src="' . esc_url($settings['auth_logo_url']) . '" width="220" alt="' . esc_attr($settings['auth_brand_name']) . '" style="display:block;max-width:100%;height:auto;margin:0 auto;">' : '<span style="font:bold italic 34px Georgia,serif;color:#ffffff;">' . $brand . '</span>';
+        ob_start();
+        include dirname(__DIR__) . '/templates/reader-magic-link-email.php';
+        return ob_get_clean();
     }
 
     public static function logout($request)
