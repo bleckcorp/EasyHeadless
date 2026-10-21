@@ -34,6 +34,12 @@ publication_assert(3 === substr_count($html, 'has-drop-cap'), 'Settings and cust
 $html = EasyHeadless_Publication_Content::prepare('<p><span class="elementor-drop-cap"><span class="elementor-drop-cap-letter">A</span></span> story.</p>');
 publication_assert(false === strpos($html, 'has-drop-cap'), 'Existing drop-cap spans are not decorated twice.');
 
+$html = EasyHeadless_Publication_Content::prepare('<div class="elementor-widget-text-editor"><p>First.</p><p>Second.</p><p>Third.</p></div><div class="elementor-widget-text-editor elementor-drop-cap-yes"><p>Fourth paragraph starts a new text widget.</p><p>Fifth stays ordinary.</p></div>');
+$dom = new DOMDocument(); @$dom->loadHTML($html); $paragraphs = $dom->getElementsByTagName('p');
+foreach (array(0 => true, 1 => false, 2 => false, 3 => true, 4 => false) as $index => $expected) {
+    publication_assert((strpos($paragraphs->item($index)->getAttribute('class'), 'has-drop-cap') !== false) === $expected, 'Only the opening and selected fourth paragraphs receive drop caps.');
+}
+
 $content_meta['_elementor_edit_mode'] = 'builder';
 $content_meta['_elementor_data'] = json_encode(array(array('elements' => array(array('widgetType' => 'heading', 'settings' => array('title' => 'Heading', 'header_size' => 'h3')), array('widgetType' => 'text-editor', 'settings' => array('editor' => '<p>Opening.</p>')), array('widgetType' => 'text-editor', 'settings' => array('editor' => '<p>Later <strong>section</strong>.</p>', 'drop_cap' => 'yes')), array('widgetType' => 'image', 'settings' => array('image' => array('url' => '/photo.jpg', 'alt' => 'Photo'), 'caption' => 'Caption'))))));
 $post->post_content = '';
