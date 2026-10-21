@@ -88,3 +88,46 @@ $source=file_get_contents(dirname(__DIR__,2).'/easyheadless-bridge/includes/clas
 check(strpos($source,"check_admin_referer('easyheadless_emailoctopus')")!==false && strpos($source,"current_user_can('manage_options')")!==false,'Admin mutations protected by capability and nonce.');
 check(strpos($source,'value="" class="regular-text"')!==false,'Key never prefilled into admin HTML.');
 echo "EmailOctopus consent, v2 requests, durable retries, suppression and secrecy tests passed.\n";
+
+// Exercise the real admin handlers without exiting this isolated test process.
+$admin_allowed=true; $nonce_valid=true; $transients=array();
+class EO_Redirect extends Exception {}
+function current_user_can($cap) { return $GLOBALS['admin_allowed']; }
+function check_admin_referer($action) { if (!$GLOBALS['nonce_valid']) { throw new Exception('Invalid nonce'); } }
+function wp_die($message) { throw new Exception($message); }
+function wp_unslash($v) { return $v; }
+function sanitize_key($v) { return preg_replace('/[^a-z0-9_-]/','',strtolower($v)); }
+function sanitize_text_field($v) { return trim(strip_tags($v)); }
+function set_transient($k,$v,$ttl) { $GLOBALS['transients'][$k]=$v; }
+function get_transient($k) { return $GLOBALS['transients'][$k] ?? false; }
+function delete_transient($k) { unset($GLOBALS['transients'][$k]); }
+function get_current_user_id() { return 1; }
+function admin_url($path) { return '/wp-admin/'.$path; }
+function wp_safe_redirect($url) { throw new EO_Redirect($url); }
+function esc_html($v) { return htmlspecialchars($v,ENT_QUOTES); }
+function esc_attr($v) { return htmlspecialchars($v,ENT_QUOTES); }
+function esc_url($v) { return htmlspecialchars($v,ENT_QUOTES); }
+function checked($a,$b,$echo=true) { return $a==$b ? 'checked="checked"' : ''; }
+function wp_nonce_field($action) { echo '<input name="_wpnonce" value="test-only">'; }
+setup_eo();
+$_POST=array('operation'=>'save','enabled'=>'1','list_id'=>'chosen-list','api_key'=>'');
+try { EasyHeadless_EmailOctopus::save(); } catch (EO_Redirect $e) {}
+check($options[EasyHeadless_EmailOctopus::OPTION]['api_key']==='eo_fixture_only','Blank password preserves stored key.');
+check($options[EasyHeadless_EmailOctopus::OPTION]['list_id']==='chosen-list','Admin saves destination.');
+$responses=array(response(200,array('data'=>array(array('id'=>'listed-id','name'=>'Film Efiko Newsletter')))));
+$_POST=array('operation'=>'lists');
+try { EasyHeadless_EmailOctopus::save(); } catch (EO_Redirect $e) {}
+check($options['easyheadless_eo_lists'][0]['id']==='listed-id','Fetch lists populates selector suggestions.');
+$responses=array(response(201,array('id'=>'created-id','name'=>'Film Efiko Newsletter')));
+$_POST=array('operation'=>'create','list_name'=>'Film Efiko Newsletter');
+try { EasyHeadless_EmailOctopus::save(); } catch (EO_Redirect $e) {}
+check($options[EasyHeadless_EmailOctopus::OPTION]['list_id']==='created-id','Explicit create selects returned list.');
+ob_start(); EasyHeadless_EmailOctopus::render(); $html=ob_get_clean();
+check(strpos($html,'eo_fixture_only')===false && strpos($html,'eo-known-lists')!==false,'Rendered admin hides secret and exposes list selector.');
+$before=$options; $admin_allowed=false;
+try { EasyHeadless_EmailOctopus::save(); throw new Exception('Capability check bypassed.'); } catch (Exception $e) { check($e->getMessage()==='Not allowed.','Capability checked.'); }
+check($options===$before,'Unauthorized save does not mutate settings.');
+$admin_allowed=true; $nonce_valid=false;
+try { EasyHeadless_EmailOctopus::save(); throw new Exception('Nonce check bypassed.'); } catch (Exception $e) { check($e->getMessage()==='Invalid nonce','Nonce checked.'); }
+check($options===$before,'Invalid nonce does not mutate settings.');
+echo "EmailOctopus admin save, list fetch/create, capability, nonce and rendered key masking tests passed.\n";
