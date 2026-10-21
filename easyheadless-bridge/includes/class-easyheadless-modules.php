@@ -3,6 +3,7 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+require_once __DIR__ . '/class-easyheadless-edition.php';
 
 /**
  * Dependency-light feature registry and normalized data providers.
@@ -122,7 +123,7 @@ final class EasyHeadless_Modules
         $saved = get_option(self::OPTION_ENABLED_MODULES, array());
         $saved = is_array($saved) ? $saved : array();
 
-        return array_merge(
+        $modules = array_merge(
             array(
                 'core' => true,
                 'portfolio' => true,
@@ -134,6 +135,10 @@ final class EasyHeadless_Modules
                 return (bool) $value;
             }, $saved)
         );
+        if (EasyHeadless_Edition::is_film_efiko()) {
+            unset($modules['church'], $modules['tutor']);
+        }
+        return $modules;
     }
 
     public static function sanitize_enabled_modules($value)
@@ -142,6 +147,7 @@ final class EasyHeadless_Modules
         $clean = array('core' => true);
 
         foreach (array('portfolio', 'church', 'tutor', 'forms') as $module) {
+            if (EasyHeadless_Edition::is_film_efiko() && in_array($module, array('church', 'tutor'), true)) { continue; }
             $clean[$module] = !empty($value[$module]);
         }
 
@@ -174,6 +180,10 @@ final class EasyHeadless_Modules
 
         if (class_exists('EasyHeadless_Updater')) {
             $capabilities['updater'] = EasyHeadless_Updater::instance()->capability_status();
+        }
+
+        if (EasyHeadless_Edition::is_film_efiko()) {
+            unset($capabilities['church'], $capabilities['tutor']);
         }
 
         return $capabilities;

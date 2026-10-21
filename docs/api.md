@@ -121,6 +121,8 @@ When the optional Publication module is enabled, its additive API is available u
 - `href` — configured link, selected category archive, or safe section fallback
 - `stories` — selected stories followed by automatically sourced stories up to the configured limit
 
+Popular feeds prioritise selected stories, then rank published articles by view events received during the preceding rolling 168 hours (UTC), independent of article publication date. Random published articles fill remaining slots. Existing homepage exclusion/category rules still apply. `POST /publication/views` records an anonymous timestamped event for a published post; unsuccessful storage returns 503 instead of claiming success. The event table is created automatically on first use after updating. It stores no reader identity and prunes events older than eight days during daily traffic-driven maintenance. Existing lifetime view totals remain available but are not used for the rolling ranking and cannot be backfilled into a dated history. Until dated events accumulate, random fallback keeps the feed populated. The frontend renders the Hot-Hot heading as text, while story links remain clickable.
+
 Editors manage section names, content sources, categories, layouts, story counts, visibility, order, links, and manual story IDs in **EasyHeadless → Homepage Sections**. Existing core endpoints remain unchanged.
 
 `GET /categories` and `GET /categories/{slug}` include `archiveMode`: `stories` or `issues`. Categories configured as issue archives should render the issue collection instead of their ordinary post archive.

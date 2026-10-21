@@ -35,6 +35,7 @@ final class EasyHeadless_REST
             '/portfolio' => 'portfolio',
             '/courses' => 'courses',
         ) as $route => $handler) {
+            if ('courses' === $handler && EasyHeadless_Edition::is_film_efiko()) { continue; }
             register_rest_route(self::NAMESPACE, $route, array(
                 'methods' => WP_REST_Server::READABLE,
                 'callback' => array($this, $handler),
@@ -42,11 +43,13 @@ final class EasyHeadless_REST
             ));
         }
 
+        if (!EasyHeadless_Edition::is_film_efiko()) {
         register_rest_route(self::NAMESPACE, '/courses/(?P<slug>[a-zA-Z0-9-]+)', array(
             'methods' => WP_REST_Server::READABLE,
             'callback' => array($this, 'course'),
             'permission_callback' => '__return_true',
         ));
+        }
 
         register_rest_route(self::NAMESPACE, '/portfolio', array(
             'methods' => WP_REST_Server::EDITABLE,

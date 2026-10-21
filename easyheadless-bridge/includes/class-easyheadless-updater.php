@@ -329,6 +329,9 @@ final class EasyHeadless_Updater
 
     public function install_release()
     {
+        if (class_exists('EasyHeadless_Edition') && EasyHeadless_Edition::is_film_efiko()) {
+            return new WP_Error('easyheadless_custom_update_required', 'Film Efiko Custom must be updated with its client-specific ZIP, not the generic EasyHeadless release.', array('status' => 409));
+        }
         if (!$this->acquire_lock()) {
             return new WP_Error('easyheadless_update_locked', 'Another EasyHeadless update is already running.', array('status' => 409));
         }

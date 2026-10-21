@@ -1,0 +1,43 @@
+.eh-film-efiko { --eh-indigo:#0c1217; --eh-indigo-soft:#fff4e8; --eh-bg:#f6f7f7; --eh-text:#101820; --eh-muted:#50575e; --eh-border:#dcdcde; }
+.eh-film-efiko .eh-admin-header { border-radius:0; border:0; border-bottom:1px solid var(--eh-border); padding:0 24px; min-height:72px; background:transparent; }
+.eh-film-efiko .eh-brand { font-size:24px; }
+.eh-film-efiko .eh-brand .dashicons,.eh-film-efiko .eh-environment { display:none; }
+.eh-film-efiko .eh-brand small { font-size:12px; }
+.eh-film-efiko .eh-shell { display:flex; flex-direction:column; border:0; background:transparent; }
+.eh-film-efiko .eh-side-nav { width:100%; min-width:0; background:transparent; border:0; border-bottom:1px solid var(--eh-border); padding:8px 24px; display:flex; flex-wrap:wrap; gap:6px 16px; }
+.eh-film-efiko .eh-nav-group { display:contents; }
+.eh-film-efiko .eh-nav-label,.eh-film-efiko .eh-side-nav .dashicons { display:none; }
+.eh-film-efiko .eh-side-nav a { padding:8px 0; border-radius:0; color:var(--eh-muted); font-size:13px; font-weight:400; }
+.eh-film-efiko .eh-side-nav a.is-active { color:#b45309; background:none; box-shadow:0 2px 0 #f7921e; }
+.eh-film-efiko .eh-main { padding:28px 24px; width:100%; }
+.eh-film-efiko .eh-page-title h1 { font-size:30px; line-height:1.2; font-weight:650; }
+.eh-film-efiko .eh-page-title p { font-size:15px; }
+.eh-film-efiko .button-primary { background:#0c1217!important; border-color:#0c1217!important; color:#fff!important; border-radius:4px; }
+.eh-film-efiko .button-primary:focus { box-shadow:0 0 0 2px #fff,0 0 0 4px #f7921e!important; }
+.eh-curation-workspace { display:grid; grid-template-columns:220px minmax(0,1fr); gap:24px; align-items:start; }
+.eh-curation-tabs { background:#fff; border:1px solid #dcdcde; }
+.eh-curation-tabs button { display:block; width:100%; padding:13px 16px; background:#fff; border:0; border-bottom:1px solid #dcdcde; border-left:4px solid transparent; text-align:left; color:#101820; font:400 14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; cursor:pointer; }
+.eh-curation-tabs button:last-child { border-bottom:0; }
+.eh-curation-tabs button[aria-selected=true] { background:#fff4e8; border-left-color:#f7921e; font-weight:600; }
+.eh-curation-tabs button:hover { background:#f6f7f7; }
+.eh-curation-tabs button:focus-visible { outline:2px solid #b45309; outline-offset:-3px; }
+.eh-curation-editor.is-enhanced .eh-curation-tabs { position:sticky; top:48px; max-height:calc(100vh - 80px); overflow-y:auto; }
+.eh-curation-panels { background:#fff; border:1px solid #dcdcde; padding:28px; min-width:0; }
+.eh-curation-panel { margin-bottom:24px; }
+.eh-curation-panel[hidden] { display:none!important; }
+.eh-curation-panel h2 { font-size:25px; line-height:1.3; margin:0 0 20px; }
+.eh-curation-display { display:flex; gap:10px; align-items:center; margin-bottom:24px; font-size:14px; }
+.eh-curation-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:28px; }
+.eh-curation-column { display:flex; flex-direction:column; gap:18px; }
+.eh-curation-fields label { display:flex; flex-direction:column; gap:7px; min-width:0; font-size:14px; line-height:1.5; }
+.eh-curation-fields input,.eh-curation-fields select { width:100%; max-width:none; min-width:0; height:40px; background:#fff; border:1px solid #c3c4c7; border-radius:4px; padding:6px 10px; color:#101820; font:400 14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.eh-curation-fields input:focus,.eh-curation-fields select:focus { border-color:#b45309; outline:1px solid #b45309; box-shadow:none; }
+.eh-curation-fields small { color:#646970; font-size:12px; line-height:1.45; }
+.eh-curation-dates { display:grid; grid-template-columns:1fr 1fr; gap:16px; grid-column:1/-1; }
+.eh-curation-save { display:flex; align-items:center; gap:16px; padding-top:20px; }
+.eh-curation-save .button { min-height:42px; padding:8px 18px; font-size:14px; }
+.eh-curation-save [role=status] { font-size:13px; color:#646970; }
+@media (max-width:1100px) { .eh-curation-workspace { grid-template-columns:180px minmax(0,1fr); gap:16px; } .eh-curation-panels { padding:22px; } .eh-curation-fields { gap:18px; } }
+@media (max-width:782px) { .eh-film-efiko .eh-main { padding:20px 12px; } .eh-film-efiko .eh-side-nav { padding:8px 12px; flex-wrap:nowrap; overflow-x:auto; } .eh-film-efiko .eh-side-nav a { flex:0 0 auto; } .eh-film-efiko .eh-brand { font-size:20px; } .eh-curation-workspace { grid-template-columns:1fr; } .eh-curation-editor.is-enhanced .eh-curation-tabs { position:static; display:flex; overflow-x:auto; max-height:none; } .eh-curation-tabs button { flex:0 0 auto; width:auto; border-left:0; border-bottom:3px solid transparent; white-space:nowrap; } .eh-curation-tabs button[aria-selected=true] { border-bottom-color:#f7921e; } .eh-curation-fields { grid-template-columns:1fr; } .eh-curation-save { flex-wrap:wrap; } }
+.eh-film-efiko .eh-email-logo-preview { max-width: 300px; padding: 20px; margin-bottom: 12px; background: #050505; border-bottom: 3px solid #ff8b1a; }
+.eh-film-efiko .eh-email-logo-preview img { max-width: 100%; max-height: 100px; width: auto; height: auto; }

@@ -532,6 +532,7 @@ final class EasyHeadless_Plugin
 
     public function render_admin_notices()
     {
+        if (EasyHeadless_Edition::is_film_efiko()) { return; }
         if (!current_user_can('manage_options')) {
             return;
         }

@@ -5,6 +5,9 @@ if (!defined('ABSPATH')) {
 }
 
 require_once __DIR__ . '/class-easyheadless-publication-content.php';
+require_once __DIR__ . '/class-easyheadless-email-branding.php';
+require_once __DIR__ . '/class-easyheadless-publication-privacy.php';
+require_once __DIR__ . '/class-easyheadless-publication-popularity.php';
 
 /**
  * Optional publication features for editorial sites.
@@ -37,6 +40,8 @@ final class EasyHeadless_Publication
 
     public static function register_hooks()
     {
+        add_filter('rest_pre_dispatch', array('EasyHeadless_Publication_Privacy', 'before_dispatch'), 0, 3);
+        add_filter('rest_post_dispatch', array('EasyHeadless_Publication_Privacy', 'after_dispatch'), PHP_INT_MAX, 3);
         add_action('init', array(__CLASS__, 'register_issue_type'));
         add_action('init', array(__CLASS__, 'register_linked_story_block'));
         add_action('wp_abilities_api_init', array(__CLASS__, 'register_abilities'));
@@ -613,9 +618,10 @@ final class EasyHeadless_Publication
             <?php self::settings_input('social_x', 'X / Twitter URL', $settings, 'url'); ?>
             <tr><th scope="row"><label for="eh-newsletter-provider">Newsletter provider</label></th><td><select id="eh-newsletter-provider" name="<?php echo esc_attr(self::OPTION_SETTINGS); ?>[newsletter_provider]"><option value="wordpress" <?php selected($settings['newsletter_provider'], 'wordpress'); ?>>WordPress storage</option><option value="mailchimp" <?php selected($settings['newsletter_provider'], 'mailchimp'); ?>>Mailchimp adapter</option><option value="brevo" <?php selected($settings['newsletter_provider'], 'brevo'); ?>>Brevo adapter</option></select><p class="description">Contacts are always stored in WordPress; a provider can be connected later.</p></td></tr>
             <tr><th colspan="2"><h2>Reader sign-in email</h2><p class="description">Single-use links expire after 10 minutes. Configure the frontend URL to use the /login/magic confirmation page. Leave it blank to use Site & URLs. Tokens are never shown in API responses.</p></th></tr>
-            <?php foreach (array('auth_frontend_url' => 'Sign-in frontend URL', 'auth_logo_url' => 'Email logo URL') as $key => $label) { self::settings_input($key, $label, $settings, 'url'); } ?>
+            <?php self::settings_input('auth_frontend_url', 'Sign-in frontend URL', $settings, 'url'); ?>
+            <?php if (EasyHeadless_Email_Branding::custom()) { EasyHeadless_Email_Branding::logo_field($settings, self::OPTION_SETTINGS); } else { self::settings_input('auth_logo_url', 'Email logo URL', $settings, 'url'); } ?>
             <?php foreach (array('auth_brand_name' => 'Publication name', 'auth_email_subject' => 'Email subject', 'auth_email_heading' => 'Email heading', 'auth_email_button' => 'Button label', 'auth_email_footer' => 'Email footer') as $key => $label) { self::settings_input($key, $label, $settings, 'text'); } ?>
-            <tr><th scope="row"><label for="eh-auth-message">Email message</label></th><td><?php wp_editor($settings['auth_email_message'], 'eh-auth-message', array('textarea_name' => self::OPTION_SETTINGS . '[auth_email_message]', 'media_buttons' => false, 'textarea_rows' => 6)); ?><p class="description">Subject, heading and message support {site_name}, {email} and {expires_minutes}. The branded template always includes the secure button, expiry notice and fallback link.</p></td></tr>
+            <tr><th scope="row"><label for="eh-auth-message">Email message</label></th><td><?php if (EasyHeadless_Email_Branding::custom()) : ?><textarea class="large-text" id="eh-auth-message" name="<?php echo esc_attr(self::OPTION_SETTINGS); ?>[auth_email_message]" rows="6"><?php echo esc_textarea(EasyHeadless_Email_Branding::plain_message($settings['auth_email_message'])); ?></textarea><p class="description">Edit the message text only. The black header, orange button and responsive HTML layout are fixed; HTML and styling cannot override the design.</p><?php else : ?><?php wp_editor($settings['auth_email_message'], 'eh-auth-message', array('textarea_name' => self::OPTION_SETTINGS . '[auth_email_message]', 'media_buttons' => false, 'textarea_rows' => 6)); ?><?php endif; ?><p class="description">Subject, heading and message support {site_name}, {email} and {expires_minutes}. The branded template always includes the secure button, expiry notice and fallback link.</p></td></tr>
         </table><?php submit_button('Save publication settings'); ?></form></section>
         <?php EasyHeadless_Admin::close_module_page(); ?>
         <?php
@@ -637,6 +643,13 @@ final class EasyHeadless_Publication
         $posts = get_posts(array('post_type' => 'post', 'post_status' => 'publish', 'numberposts' => 100, 'orderby' => 'date', 'order' => 'DESC'));
         $categories = get_categories(array('hide_empty' => false));
         $sections = self::section_definitions();
+        if (class_exists('EasyHeadless_Edition') && EasyHeadless_Edition::is_film_efiko()) {
+            require_once __DIR__ . '/class-easyheadless-curation-editor.php';
+            EasyHeadless_Admin::open_module_page('Homepage Sections', 'Edit one section at a time. Save all homepage changes together.', 'homepage-sections');
+            EasyHeadless_Curation_Editor::render($curation, self::default_curation(), $sections, $posts, $categories, self::OPTION_CURATION);
+            EasyHeadless_Admin::close_module_page();
+            return;
+        }
         ?>
         <?php EasyHeadless_Admin::open_module_page('Homepage Sections', 'Control the content, presentation, order and visibility of homepage sections.', 'homepage-sections'); ?>
         <section class="eh-card">
@@ -919,16 +932,14 @@ final class EasyHeadless_Publication
             $remaining = $count - count($stories);
             $args = $category_id ? array('cat' => $category_id) : array();
             if ($popular) {
-                $args += array(
-                    'meta_key' => self::META_VIEWS,
-                    'orderby' => array('meta_value_num' => 'DESC', 'date' => 'DESC'),
-                    'date_query' => array(array('after' => '7 days ago', 'inclusive' => true)),
-                );
+                $ranked_ids = EasyHeadless_Publication_Popularity::ranked_ids($remaining, $used, $category_id);
+                $args += array('post__in' => $ranked_ids, 'orderby' => 'post__in');
             }
-            // Tier 2: most viewed stories published in the last seven days.
-            $fill = self::query_stories($args, $remaining, $used);
+            // Tier 2: views received during the rolling past seven days, at any article age.
+            // An empty post__in means all posts in WordPress, so never query it.
+            $fill = $popular && !$ranked_ids ? array() : self::query_stories($args, $remaining, $used);
             // Tier 3: random published stories complete the rail when there
-            // are not enough recent view-ranked stories.
+            // are not enough view-ranked stories.
             if ($popular && count($fill) < $remaining) {
                 $random_args = $category_id ? array('cat' => $category_id) : array();
                 $random_args['orderby'] = 'rand';
@@ -1161,6 +1172,9 @@ final class EasyHeadless_Publication
         if ('post' !== get_post_type($post_id) || 'publish' !== get_post_status($post_id)) {
             return new WP_Error('publication_story_not_found', 'Story not found.', array('status' => 404));
         }
+        if (!EasyHeadless_Publication_Popularity::record($post_id)) {
+            return new WP_Error('publication_view_unavailable', 'View tracking is temporarily unavailable.', array('status' => 503));
+        }
         $views = absint(get_post_meta($post_id, self::META_VIEWS, true)) + 1;
         update_post_meta($post_id, self::META_VIEWS, $views);
         return rest_ensure_response(array('recorded' => true));
@@ -1274,6 +1288,10 @@ final class EasyHeadless_Publication
         $replacements = array('{site_name}' => esc_html($settings['auth_brand_name']), '{email}' => esc_html($email), '{expires_minutes}' => (string) self::CODE_MINUTES);
         $heading = esc_html(strtr($settings['auth_email_heading'], array('{site_name}' => $settings['auth_brand_name'], '{email}' => $email, '{expires_minutes}' => (string) self::CODE_MINUTES)));
         $message = wpautop(wp_kses_post(strtr($settings['auth_email_message'], $replacements)));
+        if (EasyHeadless_Email_Branding::custom()) {
+            $copy = strtr(EasyHeadless_Email_Branding::plain_message($settings['auth_email_message']), array('{site_name}' => $settings['auth_brand_name'], '{email}' => $email, '{expires_minutes}' => (string) self::CODE_MINUTES));
+            $message = '<p style="margin:0 0 18px;">' . nl2br(esc_html($copy)) . '</p>';
+        }
         $brand = esc_html($settings['auth_brand_name']);
         $button = esc_html($settings['auth_email_button']);
         $footer = esc_html($settings['auth_email_footer']);

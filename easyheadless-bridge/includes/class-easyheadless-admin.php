@@ -3,6 +3,7 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+require_once __DIR__ . '/class-easyheadless-edition.php';
 
 final class EasyHeadless_Admin
 {
@@ -11,6 +12,11 @@ final class EasyHeadless_Admin
 
     public static function register_hooks()
     {
+        if (EasyHeadless_Edition::is_film_efiko()) {
+            add_action('current_screen', array('EasyHeadless_Edition', 'quiet_notices'), PHP_INT_MAX);
+            add_action('admin_bar_menu', array('EasyHeadless_Edition', 'toolbar'), 90);
+            add_action('admin_menu', array('EasyHeadless_Edition', 'order_submenus'), 99);
+        }
         foreach (array(
             'modules' => 'save_modules',
             'site' => 'save_site',
@@ -26,8 +32,8 @@ final class EasyHeadless_Admin
     public static function register_menu()
     {
         add_menu_page(
-            'EasyHeadless Dashboard',
-            'EasyHeadless',
+            EasyHeadless_Edition::name() . ' Dashboard',
+            EasyHeadless_Edition::name(),
             'edit_posts',
             EasyHeadless_Plugin::ADMIN_MENU_SLUG,
             array(__CLASS__, 'render_overview'),
@@ -68,7 +74,9 @@ final class EasyHeadless_Admin
         // WordPress must retain these submenu records to authorize direct screen
         // URLs and resolve page titles. The internal plugin rail is the visible
         // navigation, so hide the duplicate native flyout without unregistering it.
-        add_action('admin_head', array(__CLASS__, 'hide_native_submenu'));
+        if (!EasyHeadless_Edition::is_film_efiko()) {
+            add_action('admin_head', array(__CLASS__, 'hide_native_submenu'));
+        }
     }
 
     public static function hide_native_submenu()
@@ -90,7 +98,7 @@ final class EasyHeadless_Admin
 
     public static function enqueue_assets($hook)
     {
-        if (false === strpos((string) $hook, 'easyheadless')) {
+        if (false === strpos((string) $hook, 'easyheadless') && !(EasyHeadless_Edition::is_film_efiko() && EasyHeadless_Edition::is_admin_screen())) {
             return;
         }
 
@@ -107,6 +115,18 @@ final class EasyHeadless_Admin
             EASYHEADLESS_VERSION,
             true
         );
+        if (EasyHeadless_Edition::is_film_efiko()) {
+            wp_enqueue_style('film-efiko-admin', EASYHEADLESS_PLUGIN_URL . 'assets/film-efiko-admin.css', array('easyheadless-admin'), EASYHEADLESS_VERSION);
+        }
+        if (false !== strpos((string) $hook, 'publication-curation') && EasyHeadless_Edition::is_film_efiko()) {
+            wp_enqueue_script('film-efiko-curation', EASYHEADLESS_PLUGIN_URL . 'assets/curation-editor.js', array(), EASYHEADLESS_VERSION, true);
+        }
+        // WordPress derives the prefix from the parent menu's displayed name.
+        // Match the exact page suffix so custom branding cannot disable the picker.
+        if (preg_match('/(?:^|_page_)easyheadless-publication$/', (string) $hook) && EasyHeadless_Edition::is_film_efiko()) {
+            wp_enqueue_media();
+            wp_enqueue_script('film-efiko-email-branding', EASYHEADLESS_PLUGIN_URL . 'assets/email-branding.js', array('media-editor'), EASYHEADLESS_VERSION, true);
+        }
 
         if (false !== strpos((string) $hook, self::PAGE_PREFIX . 'portfolio')) {
             wp_enqueue_media();
@@ -237,6 +257,9 @@ final class EasyHeadless_Admin
             'tutor' => array('Tutor LMS', 'Expose safe public course summaries from Tutor LMS.', 'dashicons-welcome-learn-more'),
             'forms' => array('Fluent Forms', 'Expose approved form schemas and native submission handling.', 'dashicons-feedback'),
         );
+        if (EasyHeadless_Edition::is_film_efiko()) {
+            unset($definitions['church'], $definitions['tutor']);
+        }
 
         self::open_page('Modules', 'Tailor EasyHeadless to each project without deleting saved content.', 'modules');
         self::notice();
@@ -283,9 +306,10 @@ final class EasyHeadless_Admin
                     <label><span><?php echo esc_html($label); ?></span><input type="text" name="profile[<?php echo esc_attr($key); ?>]" value="<?php echo esc_attr(isset($profile[$key]) ? $profile[$key] : ''); ?>"></label>
                 <?php endforeach; ?>
             </div>
-            <div class="eh-section-heading eh-section-divider"><div><h2>Domains and portal links</h2><p>Keep learning and checkout flows on the LMS.</p></div></div>
+            <div class="eh-section-heading eh-section-divider"><div><h2><?php echo EasyHeadless_Edition::is_film_efiko() ? 'Frontend and publishing URLs' : 'Domains and portal links'; ?></h2><p><?php echo EasyHeadless_Edition::is_film_efiko() ? 'Keep the existing site live until you deliberately enable headless routing.' : 'Keep learning and checkout flows on the LMS.'; ?></p></div></div>
             <div class="eh-form-grid">
                 <?php foreach (array('frontend_url' => 'Public frontend URL', 'lms_url' => 'LMS URL', 'login_url' => 'Login URL', 'registration_url' => 'Registration URL', 'dashboard_url' => 'Dashboard URL', 'courses_url' => 'Course catalogue URL', 'revalidation_url' => 'Revalidation webhook URL') as $key => $label) : ?>
+                    <?php if (EasyHeadless_Edition::is_film_efiko() && in_array($key, array('lms_url', 'login_url', 'registration_url', 'dashboard_url', 'courses_url'), true)) { continue; } ?>
                     <label><span><?php echo esc_html($label); ?></span><input type="url" name="profile[<?php echo esc_attr($key); ?>]" value="<?php echo esc_attr(isset($profile[$key]) ? $profile[$key] : ''); ?>"></label>
                 <?php endforeach; ?>
                 <label><span>Article path prefix</span><input type="text" name="profile[post_path_prefix]" value="<?php echo esc_attr($profile['post_path_prefix']); ?>" placeholder="stories"><small>Public path segment for posts, for example <code>stories</code> produces <code>/stories/article-slug</code>.</small></label>
@@ -670,13 +694,13 @@ final class EasyHeadless_Admin
     {
         $profile = EasyHeadless_Modules::site_profile();
         ?>
-        <div class="wrap eh-admin">
+        <div class="wrap eh-admin<?php echo EasyHeadless_Edition::is_film_efiko() ? ' eh-film-efiko' : ''; ?>">
             <header class="eh-admin-header">
-                <div class="eh-brand"><span class="dashicons dashicons-rest-api" aria-hidden="true"></span><strong>EasyHeadless</strong><small>v<?php echo esc_html(EASYHEADLESS_VERSION); ?></small></div>
+                <div class="eh-brand"><span class="dashicons dashicons-rest-api" aria-hidden="true"></span><strong><?php echo esc_html(EasyHeadless_Edition::name()); ?></strong><small>v<?php echo esc_html(EASYHEADLESS_VERSION); ?></small></div>
                 <div class="eh-environment"><span></span><?php echo wp_get_environment_type() === 'production' ? 'Production' : esc_html(ucfirst(wp_get_environment_type())); ?><?php if (!empty($profile['frontend_url'])) : ?><a href="<?php echo esc_url($profile['frontend_url']); ?>" target="_blank" rel="noopener noreferrer">View site <span class="dashicons dashicons-external" aria-hidden="true"></span></a><?php endif; ?></div>
             </header>
             <div class="eh-shell">
-                <nav class="eh-side-nav" aria-label="EasyHeadless sections">
+                <nav class="eh-side-nav" aria-label="<?php echo esc_attr(EasyHeadless_Edition::name() . ' sections'); ?>">
                     <?php foreach (self::admin_navigation() as $group => $items) : ?>
                         <div class="eh-nav-group">
                             <span class="eh-nav-label"><?php echo esc_html($group); ?></span>

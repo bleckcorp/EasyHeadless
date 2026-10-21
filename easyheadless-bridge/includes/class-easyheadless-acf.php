@@ -98,7 +98,9 @@ final class EasyHeadless_ACF
             self::textarea('field_eh_team_bio', 'bio', 'Bio'),
         ));
 
-        self::register_church_field_groups();
+        if (!class_exists('EasyHeadless_Edition') || !EasyHeadless_Edition::is_film_efiko()) {
+            self::register_church_field_groups();
+        }
     }
 
     private static function register_church_field_groups()
