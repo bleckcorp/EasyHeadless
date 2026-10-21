@@ -19,6 +19,9 @@ function get_post_modified_time($format, $gmt, $post) { return '2026-10-03'; }
 function get_the_post_thumbnail_url($post, $size) { return ''; }
 function get_post_thumbnail_id($post) { return 0; }
 function wp_get_attachment_caption($id) { return ''; }
+if (!function_exists('is_wp_error')) {
+    function is_wp_error($value) { return $value instanceof WP_Error; }
+}
 
 $post = (object) array('ID' => 1, 'post_author' => 1, 'post_name' => 'test', 'post_content' => '<p>First paragraph.</p><p>Second paragraph.</p>');
 $html = EasyHeadless_Publication_Content::render($post);

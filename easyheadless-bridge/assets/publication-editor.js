@@ -43,7 +43,8 @@
       root.querySelector('[data-eh-presentation-help]').textContent = {
         inherit: "Uses the presentation configured for this story's category.",
         nation: 'The standard editorial article layout.',
-        'new-yorker': 'The split editorial lead and long-form reading layout.',
+        'new-yorker': 'Centered split hero with white text on black. The article body stays white.',
+        'new-yorker-white': 'The same centered split hero with black text on white. The article body stays white.',
       }[presentation.value];
     }
     presentation.addEventListener('change', presentationHelp);

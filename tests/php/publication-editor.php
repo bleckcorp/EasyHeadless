@@ -60,6 +60,11 @@ editor_assert('0' === $document->getElementById('eh-preview')->getAttribute('val
 editor_assert(1 === $xpath->query('//select[@id="eh-issue"]/option[@value="100"][@selected]')->length, 'Existing issue selection preserved');
 editor_assert(1 === $xpath->query('//select[@id="eh-access"]/option[@value="members"][@selected]')->length, 'Restricted access preserved');
 editor_assert(1 === $xpath->query('//select[@id="eh-presentation-style"]/option[@value="new-yorker"][@selected]')->length, 'Presentation preserved');
+editor_assert('New Yorker Black' === $xpath->query('//select[@id="eh-presentation-style"]/option[@value="new-yorker"]')->item(0)->textContent, 'Existing style is labelled Black');
+editor_assert('New Yorker White' === $xpath->query('//select[@id="eh-presentation-style"]/option[@value="new-yorker-white"]')->item(0)->textContent, 'White option is available');
+$white_html = render_editor(array(EasyHeadless_Publication::META_PRESENTATION_STYLE => 'new-yorker-white'));
+$white_doc = new DOMDocument(); @$white_doc->loadHTML($white_html); $white_xpath = new DOMXPath($white_doc);
+editor_assert(1 === $white_xpath->query('//option[@value="new-yorker-white"][@selected]')->length, 'Saved White selection is preserved');
 editor_assert(0 === $document->getElementsByTagName('script')->length, 'Stored gate message escaped');
 editor_assert(1 === $xpath->query('//*[@data-eh-issue-search]')->length, 'Search control rendered');
 editor_assert(strpos($html, 'data-volume="Volume 1"') !== false && strpos($html, 'Issue 2 (Draft)') !== false, 'Issue metadata and draft state visible');

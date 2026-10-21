@@ -87,6 +87,7 @@ publication_assert(!isset($sections['archive']) && !isset($sections['cover']), '
 
 $presentation = new ReflectionMethod('EasyHeadless_Publication', 'sanitize_presentation_style');
 publication_assert('new-yorker' === $presentation->invoke(null, 'new-yorker', 'nation'), 'New Yorker presentation style is accepted.');
+publication_assert('new-yorker-white' === $presentation->invoke(null, 'new-yorker-white', 'nation'), 'New Yorker White is accepted.');
 publication_assert('nation' === $presentation->invoke(null, 'unsupported', 'nation'), 'Unsupported presentation styles use the safe fallback.');
 $archive_mode = new ReflectionMethod('EasyHeadless_Publication', 'sanitize_archive_mode');
 publication_assert('issues' === $archive_mode->invoke(null, 'issues'), 'Issue archive behaviour is accepted.');

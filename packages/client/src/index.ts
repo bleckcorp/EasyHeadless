@@ -248,7 +248,7 @@ export type EasyHeadlessIssue = {
     author: { id: number; name: string; slug: string };
     categories: Array<{ id: number; name: string; slug: string }>;
     access: "public" | "members";
-    presentationStyle: "nation" | "new-yorker";
+    presentationStyle: "nation" | "new-yorker" | "new-yorker-white";
   }>;
 };
 

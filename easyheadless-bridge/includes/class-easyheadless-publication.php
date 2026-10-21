@@ -8,6 +8,7 @@ require_once __DIR__ . '/class-easyheadless-publication-content.php';
 require_once __DIR__ . '/class-easyheadless-email-branding.php';
 require_once __DIR__ . '/class-easyheadless-publication-privacy.php';
 require_once __DIR__ . '/class-easyheadless-publication-popularity.php';
+require_once __DIR__ . '/class-easyheadless-publication-review.php';
 
 /**
  * Optional publication features for editorial sites.
@@ -40,6 +41,7 @@ final class EasyHeadless_Publication
 
     public static function register_hooks()
     {
+        EasyHeadless_Publication_Review::register_hooks();
         add_filter('rest_pre_dispatch', array('EasyHeadless_Publication_Privacy', 'before_dispatch'), 0, 3);
         add_filter('rest_post_dispatch', array('EasyHeadless_Publication_Privacy', 'after_dispatch'), PHP_INT_MAX, 3);
         add_action('init', array(__CLASS__, 'register_issue_type'));
@@ -339,7 +341,7 @@ final class EasyHeadless_Publication
     {
         ?>
         <div class="form-field"><label for="easyheadless-presentation-style">Presentation style</label>
-            <select id="easyheadless-presentation-style" name="easyheadless_presentation_style"><option value="nation">Nation / standard</option><option value="new-yorker">New Yorker inspired</option></select>
+            <select id="easyheadless-presentation-style" name="easyheadless_presentation_style"><option value="nation">Standard</option><option value="new-yorker">New Yorker Black</option><option value="new-yorker-white">New Yorker White</option></select>
             <p>Controls the category page and the default presentation of stories in this category.</p></div>
         <?php
     }
@@ -349,7 +351,7 @@ final class EasyHeadless_Publication
         $style = self::sanitize_presentation_style(get_term_meta($term->term_id, self::TERM_META_PRESENTATION_STYLE, true), 'nation');
         ?>
         <tr class="form-field"><th scope="row"><label for="easyheadless-presentation-style">Presentation style</label></th><td>
-            <select id="easyheadless-presentation-style" name="easyheadless_presentation_style"><option value="nation" <?php selected($style, 'nation'); ?>>Nation / standard</option><option value="new-yorker" <?php selected($style, 'new-yorker'); ?>>New Yorker inspired</option></select>
+            <select id="easyheadless-presentation-style" name="easyheadless_presentation_style"><option value="nation" <?php selected($style, 'nation'); ?>>Standard</option><option value="new-yorker" <?php selected($style, 'new-yorker'); ?>>New Yorker Black</option><option value="new-yorker-white" <?php selected($style, 'new-yorker-white'); ?>>New Yorker White</option></select>
             <p class="description">Controls the category page and the default presentation of stories in this category.</p></td></tr>
         <?php
     }
@@ -365,7 +367,7 @@ final class EasyHeadless_Publication
 
     private static function sanitize_presentation_style($value, $fallback = 'nation')
     {
-        return in_array($value, array('inherit', 'nation', 'new-yorker'), true) ? $value : $fallback;
+        return in_array($value, array('inherit', 'nation', 'new-yorker', 'new-yorker-white'), true) ? $value : $fallback;
     }
 
     private static function sanitize_archive_mode($value)
@@ -495,7 +497,7 @@ final class EasyHeadless_Publication
             <fieldset class="eh-publication-editor__section">
                 <legend>Presentation</legend>
                 <label for="eh-presentation-style">Article layout</label>
-                <select id="eh-presentation-style" name="easyheadless_presentation_style" data-eh-presentation aria-describedby="eh-presentation-help"><option value="inherit" <?php selected($presentation_style, 'inherit'); ?>>Inherit from category</option><option value="nation" <?php selected($presentation_style, 'nation'); ?>>Standard</option><option value="new-yorker" <?php selected($presentation_style, 'new-yorker'); ?>>New Yorker inspired</option></select>
+                <select id="eh-presentation-style" name="easyheadless_presentation_style" data-eh-presentation aria-describedby="eh-presentation-help"><option value="inherit" <?php selected($presentation_style, 'inherit'); ?>>Inherit from category</option><option value="nation" <?php selected($presentation_style, 'nation'); ?>>Standard</option><option value="new-yorker" <?php selected($presentation_style, 'new-yorker'); ?>>New Yorker Black</option><option value="new-yorker-white" <?php selected($presentation_style, 'new-yorker-white'); ?>>New Yorker White</option></select>
                 <p id="eh-presentation-help" class="eh-publication-editor__hint" data-eh-presentation-help>Use the category's layout, or choose a layout for this article only.</p>
             </fieldset>
             <fieldset class="eh-publication-editor__section">
@@ -1001,6 +1003,7 @@ final class EasyHeadless_Publication
             'access' => 'members' === $access ? 'members' : 'public',
             'preview' => $preview,
             'gateMessage' => get_post_meta($post->ID, self::META_GATE_MESSAGE, true),
+            'review' => EasyHeadless_Publication_Review::public_data($post->ID),
             'presentationStyle' => self::resolved_presentation_style($post, $terms),
         );
         if ('public' === $payload['access'] || $include_content) {
@@ -1020,8 +1023,9 @@ final class EasyHeadless_Publication
         }
         if (is_array($terms)) {
             foreach ($terms as $term) {
-                if ('new-yorker' === self::sanitize_presentation_style(get_term_meta($term->term_id, self::TERM_META_PRESENTATION_STYLE, true), 'nation')) {
-                    return 'new-yorker';
+                $style = self::sanitize_presentation_style(get_term_meta($term->term_id, self::TERM_META_PRESENTATION_STYLE, true), 'nation');
+                if (in_array($style, array('new-yorker', 'new-yorker-white'), true)) {
+                    return $style;
                 }
             }
         }

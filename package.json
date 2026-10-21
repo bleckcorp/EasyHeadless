@@ -23,6 +23,7 @@
     "test:issue-excerpt": "php tests/php/issue-excerpt.php",
     "test:publication-privacy": "php tests/php/publication-privacy.php",
     "test:publication-popularity": "php tests/php/publication-popularity.php",
+    "test:publication-review": "php tests/php/publication-review.php",
     "client:build": "npm --workspace @easyheadless/client run build",
     "client:typecheck": "npm --workspace @easyheadless/client run typecheck",
     "mcp:build": "npm --workspace @easyheadless/mcp-server run build",

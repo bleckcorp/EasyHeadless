@@ -21,6 +21,8 @@ define('EASYHEADLESS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('EASYHEADLESS_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
 require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-plugin.php';
+require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-emailoctopus.php';
+EasyHeadless_EmailOctopus::register_hooks();
 
 register_activation_hook(__FILE__, array('EasyHeadless_Plugin', 'activate'));
 

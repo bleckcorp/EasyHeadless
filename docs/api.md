@@ -93,6 +93,12 @@ Each normalized post also includes `date` (published ISO 8601 timestamp) and `ca
 
 ## Publication module
 
+### Optional Efiko Score per article
+
+Every post has an optional **Efiko Score** editor panel with a score out of 10 (one decimal place) and a plain-text verdict/description. Categories do not enable it: an explicit valid score does. Blank scores produce `review: null` in Publication story responses; numeric zero remains a valid score. Frontends must render no score card when `review` is null or missing. A configured score adds `review: {score: 5.1, description: "The verdict"}`. These fields do not modify article HTML or automatically extract existing inline scores. Film Efiko renders only the bottom card, before sharing, with score and verdict side by side on desktop and mobile; it does not render a title badge.
+
+Editorial API: `GET /publication/posts/id/{id}/review` inspects the editable values, including draft posts; `PATCH /publication/posts/id/{id}/review` accepts `{score: 5.1, description: "The verdict"}`. Both require the EasyHeadless API key (not a reader session or frontend secret), matching the existing issue-editing permission model. Unknown fields and invalid scores are rejected before saving. Omitted keys preserve existing values; `score: null` or `score: ""` clears the score and hides the feature, retaining the verdict for future editing. `description: ""` clears the verdict. The edit form uses a nonce and post-specific edit capability, skips autosaves and revisions, and never wipes metadata when its controls are absent. Updates notify the configured revalidation hooks; no category or existing body content changes.
+
 ### Reader magic-link authentication
 
 Reader sign-in and registration share the same single-use email-link flow:

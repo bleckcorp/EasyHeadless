@@ -47,6 +47,20 @@ In the post editor, open the **Publication** panel. **Magazine issue** lets you 
 
 Allowed origins are used for CORS. Leave the field empty only for local experiments; production sites should list exact frontend origins.
 
+### Article hero styles
+
+In **Posts → Edit post → Publication → Presentation → Article layout**, select **Standard**, **New Yorker Black** (white text on a black hero), or **New Yorker White** (black text on a white hero), then update the post. **Inherit from category** uses the category's presentation setting. Both New Yorker options use the same centered split hero and responsive layout; only hero colors change. The article body remains white. The existing `new-yorker` stored value means Black; White uses `new-yorker-white`. No content migration is needed.
+
+### Efiko Score card (Film Efiko Custom 0.6.16+)
+
+1. Install the updated Film Efiko Custom plugin and deploy the matching frontend.
+2. Open **Posts → All Posts → Edit** on any article (the ordinary WordPress editor, not Elementor).
+3. Find **Efiko Score** in the editor sidebar. In the block editor, enable this panel in Preferences → Panels if hidden; in the classic editor use Screen Options.
+4. Enter **Score out of 10** (0–10, at most one decimal, e.g. 5.1) and **Verdict / description**. Click **Update** or **Publish**.
+5. The card appears after the full article, before sharing. Its orange score box stays to the left of the verdict on mobile. No top badge is added, and no Reviews category is required.
+
+Leave the score blank and update to remove the entire card; a saved description alone does not display it. A score of 0 is valid. A score without a description displays only the score box. Existing inline Elementor scores are not moved or removed automatically: remove duplicate inline verdicts manually if desired. Normal frontend cache revalidation must be configured for immediate updates; otherwise allow the story cache to refresh.
+
 ## API Endpoints
 
 Base path:
