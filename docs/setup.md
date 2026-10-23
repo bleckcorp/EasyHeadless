@@ -127,6 +127,14 @@ The Accel app includes reviewed draft fallback content so preview builds remain 
 - View page source and confirm SEO title/meta/social tags render.
 - Submit a form from the frontend and confirm the entry appears in the WordPress form plugin.
 
+## Donation payment link (Film Efiko)
+
+In **Film Efiko Custom → Publication → Donate URL**, paste the complete public HTTP(S) checkout/payment link from your preferred provider and click **Save publication settings**. The frontend reads `donationUrl` from the Publication settings endpoint and opens Donate in a new tab. Blank or invalid links hide the button. Allow up to five minutes for cached settings to refresh.
+
+Payment collection, receipts and any post-payment return URL are managed by the payment provider. This link-only integration does not record donations or confirm payment in WordPress. Configure a return/thank-you destination in the provider's dashboard if supported. Test with the provider's sandbox link before accepting real payments.
+
+For Paystack Payment Pages, set **Show advanced options → Redirect after payment** to `https://YOUR-FRONTEND-DOMAIN/donate/thank-you` after deploying the frontend. During Film Efiko staging, use `https://film-efiko-web.vercel.app/donate/thank-you`; replace it with the final public domain at cutover. This public page thanks the reader and links back to stories, the newsletter and contact. It does not validate a transaction reference, record a donation, or grant reader access. Keep Paystack's customer receipts enabled for actual payment confirmation. The route is marked noindex.
+
 ## Reader sign-in email
 
 In **EasyHeadless → Publication → Reader sign-in email**, set the frontend URL (or use the existing Site & URLs value), publication name and optional public logo URL. Edit the subject, heading, message, button and footer there. Install the corresponding frontend `/login/magic` confirmation route before switching readers to magic links. During local testing, the admin frontend URL can point to `http://localhost:3001`; restore the public URL before production. Use a working WordPress mail transport. Link requests return delivery errors if `wp_mail` fails.
