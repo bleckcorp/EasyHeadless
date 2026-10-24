@@ -4,6 +4,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 require_once __DIR__ . '/class-easyheadless-edition.php';
+require_once __DIR__ . '/class-easyheadless-contact-form.php';
 
 final class EasyHeadless_Admin
 {
@@ -479,12 +480,15 @@ final class EasyHeadless_Admin
         <section class="eh-card eh-provider-card"><div class="eh-provider-icon">F</div><div><h2>Fluent Forms <span class="eh-badge <?php echo $diagnostics['loaded'] ? 'eh-badge-success' : 'eh-badge-warning'; ?>"><?php echo $diagnostics['loaded'] ? 'Ready' : 'Needs attention'; ?></span></h2><p>Plugin version: <?php echo esc_html($diagnostics['version'] ? $diagnostics['version'] : 'Unavailable'); ?></p></div><a class="button" href="<?php echo esc_url(admin_url('admin.php?page=' . self::PAGE_PREFIX . 'forms')); ?>">Refresh forms</a></section>
         <form class="eh-card" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <?php self::form_token('easyheadless_forms'); ?>
+            <div class="eh-section-heading"><div><h2>Contact page form</h2><p>Choose the Fluent Form shown at /contact. Selecting a form also enables its public schema. Edit its fields and notifications in Fluent Forms; the website reads the latest definition on each page load.</p></div></div>
+            <p><label for="eh-contact-form">Contact page form</label> <select id="eh-contact-form" name="contact_form"><option value="">No form selected</option><?php foreach ($forms as $form) : ?><option value="<?php echo esc_attr($form['id']); ?>" <?php selected(get_option(EasyHeadless_Contact_Form::OPTION, ''), $form['id']); ?>><?php echo esc_html($form['title']); ?></option><?php endforeach; ?></select></p>
+            <p class="description">Supports standard fields, name/address groups and column containers. Payments, uploads, passwords/registration, CAPTCHA, conditional logic and advanced Pro widgets are not supported. Remove native CAPTCHA fields; optional Turnstile is verified by the frontend server when configured. Unsupported forms cannot be selected.</p>
             <div class="eh-section-heading"><div><h2>Available forms</h2><p>Only enabled forms can be read or submitted publicly.</p></div></div>
             <div class="eh-forms-table">
                 <div class="eh-table-head"><span>Form</span><span>Provider ID</span><span>Fields</span><span>Public API</span><span>Status</span></div>
                 <?php foreach ($forms as $form) : ?>
                     <?php $schema = $adapter->get_form(str_replace('fluentforms:', '', $form['id'])); $fields = is_wp_error($schema) ? array() : $schema['fields']; ?>
-                    <label class="eh-form-row"><strong><?php echo esc_html($form['title']); ?></strong><code><?php echo esc_html($form['id']); ?></code><span><?php echo esc_html(count($fields)); ?> fields</span><span class="eh-switch"><input type="checkbox" name="forms[]" value="<?php echo esc_attr($form['id']); ?>" <?php checked(in_array($form['id'], $allowed, true)); ?>><i aria-hidden="true"></i><span class="screen-reader-text">Make <?php echo esc_html($form['title']); ?> public</span></span><span class="eh-schema-status"><span class="eh-status-dot"></span><?php echo is_wp_error($schema) ? 'Schema unavailable' : 'Schema valid'; ?></span></label>
+                    <label class="eh-form-row"><strong><?php echo esc_html($form['title']); ?></strong><code><?php echo esc_html($form['id']); ?></code><span><?php echo esc_html(count($fields)); ?> fields</span><span class="eh-switch"><input type="checkbox" name="forms[]" value="<?php echo esc_attr($form['id']); ?>" <?php checked(in_array($form['id'], $allowed, true)); ?>><i aria-hidden="true"></i><span class="screen-reader-text">Make <?php echo esc_html($form['title']); ?> public</span></span><span class="eh-schema-status"><span class="eh-status-dot"></span><?php echo is_wp_error($schema) ? 'Schema unavailable' : (empty($schema['supported']) ? 'Unsupported for Contact page' : 'Schema valid'); ?></span></label>
                 <?php endforeach; ?>
                 <?php if (!$forms) : ?><div class="eh-empty"><h3>No Fluent Forms detected</h3><p><?php echo esc_html($diagnostics['message'] ? $diagnostics['message'] : 'Create a form in Fluent Forms, then refresh this screen.'); ?></p></div><?php endif; ?>
             </div>
@@ -633,6 +637,10 @@ final class EasyHeadless_Admin
     {
         self::authorize();
         $ids = isset($_POST['forms']) ? wp_unslash($_POST['forms']) : array();
+        $contact = array_key_exists('contact_form', $_POST) ? EasyHeadless_Contact_Form::validate_selection(wp_unslash($_POST['contact_form'])) : get_option(EasyHeadless_Contact_Form::OPTION, '');
+        if (is_wp_error($contact)) { wp_die(esc_html($contact->get_error_message())); }
+        if ($contact) { $ids = is_array($ids) ? $ids : array(); $ids[] = $contact; }
+        update_option(EasyHeadless_Contact_Form::OPTION, $contact);
         update_option(EasyHeadless_Modules::OPTION_ALLOWED_FORMS, EasyHeadless_Modules::sanitize_allowed_forms($ids));
         self::redirect(self::PAGE_PREFIX . 'forms', 'saved');
     }

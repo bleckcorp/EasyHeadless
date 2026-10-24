@@ -12,6 +12,8 @@ require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-updater.php'
 require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-rest.php';
 require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-admin.php';
 require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-publication.php';
+require_once EASYHEADLESS_PLUGIN_DIR . 'includes/class-easyheadless-contact-form.php';
+if (function_exists('add_action')) { add_action('rest_api_init', array('EasyHeadless_Contact_Form', 'register_routes')); }
 
 final class EasyHeadless_Plugin
 {

@@ -47,6 +47,12 @@ In the post editor, open the **Publication** panel. **Magazine issue** lets you 
 
 Allowed origins are used for CORS. Leave the field empty only for local experiments; production sites should list exact frontend origins.
 
+### Film Efiko TV & Documentary
+
+Keep **TV** (`tv`) and **Documentary** (`documentary`) as separate WordPress categories and assign the appropriate category when editing each post. No slug or article-permalink migration is needed. The frontend exposes separate archives at `/tv` and `/docu`, with matching menu/footer links. Old `/category/tv` and `/category/documentary` links redirect to these archives, preserving pagination.
+
+After installing the updated Publication plugin, leave **Homepage Sections → TV & Documentary → Content source** on **Latest stories** to combine the newest stories from either category in one homepage block. Selected story IDs remain first and homepage deduplication still applies; unrelated stories are not used as automatic filler. An explicitly selected single-category source still uses that category. Save homepage curation and refresh the frontend cache. This does not change the currently live WordPress taxonomy or switch the public domain.
+
 ### Article hero styles
 
 In **Posts → Edit post → Publication → Presentation → Article layout**, select **Standard**, **New Yorker Black** (white text on a black hero), or **New Yorker White** (black text on a white hero), then update the post. **Inherit from category** uses the category's presentation setting. Both New Yorker options use the same centered split hero and responsive layout; only hero colors change. The article body remains white. The existing `new-yorker` stored value means Black; White uses `new-yorker-white`. No content migration is needed.
@@ -86,6 +92,20 @@ Endpoints:
 - `GET /health`
 
 ## Fluent Forms V1 Spike
+
+### Film Efiko Contact page (dynamic Fluent Forms)
+
+After updating the plugin and frontend, go to **Film Efiko Custom → Forms → Contact page form**, choose a standard Fluent Form and **Save public access**. Selecting it also approves its public schema. Choose **No form selected** to disable the contact form. Existing general public forms retain their approval checkboxes. An unavailable, deleted, unapproved or unsupported selected form shows an unavailable message; it never silently falls back to the old email handler.
+
+Manage labels, required fields, options, default values, help text and notifications in **Fluent Forms**. The Contact page fetches the selected schema without caching, so updates appear on the next page load, without a rebuild. A form already open before a change asks the reader to reload rather than submitting against a different schema. Entries, validation and configured notifications run through Fluent Forms; Contact submissions no longer create reader/newsletter contacts or send a separate `wp_mail` message.
+
+Supported: text, email, URL, numeric, telephone/mask, date, textarea, single/multi-select, radio, checkbox groups, consent, static hidden values, names and address groups, country lists, and fields inside column containers. Section breaks and custom HTML display as safe plain text rather than scripts/styles. Nested fields retain their Fluent Forms names and field-level errors. Layout is styled by the frontend rather than copied from the WordPress theme.
+
+Payments, uploads, passwords/user-registration, CAPTCHA elements, conditional logic, multi-step/repeater/advanced Pro widgets and dynamic default shortcodes are not supported. They block selection instead of being silently discarded. Remove native CAPTCHA fields from this Contact form. Existing Fluent Forms validation and server anti-spam hooks are not bypassed.
+
+Turnstile is optional: configure `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, server-only `TURNSTILE_SECRET` (or `TURNSTILE_SECRET_KEY`) and exact `TURNSTILE_HOSTNAMES` on the frontend. With no keys, no widget or verification is used. Partial configuration fails closed. With full configuration, `/api/contact` verifies success, action `contact`, and hostname via Cloudflare Siteverify before calling the protected Publication endpoint. Tokens are reset after each attempt. No new widget or secret is created by this change. The selected contact form cannot be submitted through the generic public EasyHeadless forms endpoint; other forms are unchanged. Native WordPress/Fluent Forms endpoints retain their own security configuration.
+
+Deploy the plugin first, select the form, then deploy the frontend. The existing `EASYHEADLESS_FRONTEND_SECRET` must match Publication's frontend secret. Test a submission and verify its entry and notification in Fluent Forms before launch. No live test email is sent automatically by the implementation.
 
 The plugin includes a Fluent Forms adapter with defensive feature detection. It uses Fluent Forms classes/functions only when they are present and returns a clear `adapter_unavailable` response when the installed Fluent Forms version does not expose a safe submission pathway.
 

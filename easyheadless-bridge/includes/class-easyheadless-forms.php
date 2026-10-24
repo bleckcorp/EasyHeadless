@@ -3,6 +3,7 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+require_once __DIR__ . '/class-easyheadless-form-schema.php';
 
 interface EasyHeadless_Form_Adapter
 {
@@ -82,8 +83,12 @@ final class EasyHeadless_Forms
         return $adapter->get_form($this->strip_provider($id));
     }
 
-    public function submit($id, $fields)
+    public function submit($id, $fields, $trusted_contact = false)
     {
+        $contact = get_option('easyheadless_contact_form', '');
+        if (!$trusted_contact && $contact && $this->strip_provider($contact) === $this->strip_provider((string) $id)) {
+            return new WP_Error('contact_frontend_required', 'Submit this form through the Contact page.', array('status' => 403));
+        }
         if (!$this->is_allowed($id, EasyHeadless_Modules::allowed_form_ids())) {
             return new WP_Error('form_not_found', 'This form is not publicly available.', array('status' => 404));
         }
@@ -215,13 +220,17 @@ final class EasyHeadless_FluentForms_Adapter implements EasyHeadless_Form_Adapte
             return new WP_Error('form_not_found', 'Fluent Form not found.', array('status' => 404));
         }
 
-        $fields = $this->extract_fields($form);
+        $schema = EasyHeadless_Form_Schema::read($form);
 
         return array(
             'id' => $this->id() . ':' . $form->id,
             'provider' => $this->id(),
             'title' => $form->title,
-            'fields' => $fields,
+            'fields' => $schema['fields'],
+            'submitLabel' => $schema['submitLabel'],
+            'supported' => $schema['supported'],
+            'unsupported' => $schema['unsupported'],
+            'version' => $schema['version'],
         );
     }
 
@@ -421,8 +430,9 @@ final class EasyHeadless_FluentForms_Adapter implements EasyHeadless_Form_Adapte
     {
         $normalized = array();
         foreach (is_array($errors) ? $errors : array() as $field => $messages) {
+            if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_.\[\]-]*$/D', (string) $field)) { continue; }
             $messages = is_array($messages) ? $messages : array($messages);
-            $normalized[sanitize_key($field)] = array_values(array_filter(array_map('sanitize_text_field', $messages)));
+            $normalized[$field] = array_values(array_filter(array_map('sanitize_text_field', $messages)));
         }
 
         return $normalized;

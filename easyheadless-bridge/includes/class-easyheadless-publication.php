@@ -9,6 +9,7 @@ require_once __DIR__ . '/class-easyheadless-email-branding.php';
 require_once __DIR__ . '/class-easyheadless-publication-privacy.php';
 require_once __DIR__ . '/class-easyheadless-publication-popularity.php';
 require_once __DIR__ . '/class-easyheadless-publication-review.php';
+require_once __DIR__ . '/class-easyheadless-contact-form.php';
 
 /**
  * Optional publication features for editorial sites.
@@ -693,20 +694,43 @@ final class EasyHeadless_Publication
         );
     }
 
+    /** Shared allowlisted filters for the contact table and its CSV export. */
+    public static function contact_filters()
+    {
+        global $wpdb;
+        $groups = array(
+            'all' => array('All contacts', ''),
+            'newsletter' => array('Newsletter subscribers', 'newsletter_consent = 1'),
+            'members' => array('Verified members', "(verified_at IS NOT NULL AND verified_at != '')"),
+            'both' => array('Members + newsletter', "newsletter_consent = 1 AND (verified_at IS NOT NULL AND verified_at != '')"),
+            'newsletter_only' => array('Newsletter only', "newsletter_consent = 1 AND (verified_at IS NULL OR verified_at = '')"),
+            'members_only' => array('Members only (no newsletter)', "newsletter_consent = 0 AND (verified_at IS NOT NULL AND verified_at != '')"),
+            'other' => array('Other contacts', "newsletter_consent = 0 AND (verified_at IS NULL OR verified_at = '')"),
+        );
+        $group = isset($_GET['contact_group']) && is_string($_GET['contact_group']) ? sanitize_key(wp_unslash($_GET['contact_group'])) : 'all';
+        if (!isset($groups[$group])) { $group = 'all'; }
+        $search = isset($_GET['s']) && is_string($_GET['s']) ? sanitize_text_field(wp_unslash($_GET['s'])) : '';
+        $conditions = $groups[$group][1] ? array($groups[$group][1]) : array();
+        if ('' !== $search) { $conditions[] = $wpdb->prepare('email LIKE %s', '%' . $wpdb->esc_like($search) . '%'); }
+        return array('group' => $group, 'groups' => $groups, 'search' => $search, 'where' => $conditions ? ' WHERE ' . implode(' AND ', $conditions) : '');
+    }
+
     public static function render_contacts_page()
     {
         if (!current_user_can('manage_options')) {
             return;
         }
         global $wpdb;
-        $search = isset($_GET['s']) ? sanitize_email(wp_unslash($_GET['s'])) : '';
-        $where = $search ? $wpdb->prepare(' WHERE email LIKE %s', '%' . $wpdb->esc_like($search) . '%') : '';
+        $filters = self::contact_filters();
+        $search = $filters['search'];
+        $where = $filters['where'];
         $rows = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}eh_publication_contacts{$where} ORDER BY updated_at DESC LIMIT 500"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         ?>
         <?php EasyHeadless_Admin::open_module_page('Readers & Contacts', 'Manage verified readers, newsletter consent and contact exports.', 'readers'); ?>
-        <div class="eh-card"><form method="get"><input type="hidden" name="page" value="easyheadless-publication-contacts"><p class="search-box"><label class="screen-reader-text" for="contact-search">Search contacts</label><input id="contact-search" name="s" value="<?php echo esc_attr($search); ?>"><button class="button">Search</button></p></form>
-        <p><a class="button button-primary" href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=easyheadless_publication_export'), 'easyheadless_publication_export')); ?>">Export CSV</a></p>
-        <table class="widefat striped"><thead><tr><th>Email</th><th>Verified</th><th>Newsletter</th><th>Source story</th><th>Updated</th><th></th></tr></thead><tbody><?php if (!$rows) : ?><tr><td colspan="6">No contacts found.</td></tr><?php endif; foreach ($rows as $row) : ?><tr><td><?php echo esc_html($row->email); ?></td><td><?php echo esc_html($row->verified_at ?: '—'); ?></td><td><?php echo $row->newsletter_consent ? 'Yes' : 'No'; ?></td><td><?php echo esc_html($row->source_article ?: '—'); ?></td><td><?php echo esc_html($row->updated_at); ?></td><td><a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=easyheadless_publication_delete_contact&id=' . absint($row->id)), 'easyheadless_publication_delete_contact_' . absint($row->id))); ?>" onclick="return confirm('Delete this contact and revoke their sessions?')">Delete</a></td></tr><?php endforeach; ?></tbody></table></div>
+        <div class="eh-card"><form method="get"><input type="hidden" name="page" value="easyheadless-publication-contacts"><p><label for="contact-group">Contact type</label> <select id="contact-group" name="contact_group"><?php foreach ($filters['groups'] as $key => $group) : ?><option value="<?php echo esc_attr($key); ?>" <?php selected($filters['group'], $key); ?>><?php echo esc_html($group[0]); ?></option><?php endforeach; ?></select> <label class="screen-reader-text" for="contact-search">Search contacts</label><input id="contact-search" name="s" placeholder="Search email" value="<?php echo esc_attr($search); ?>"> <button class="button">Filter</button> <a class="button" href="<?php echo esc_url(admin_url('admin.php?page=easyheadless-publication-contacts')); ?>">Reset</a></p></form>
+        <p class="description">Members have a verified reader email. Newsletter subscribers have given newsletter consent; a reader can be both. Newsletter consent here does not confirm delivery or subscription status at an external email provider.</p>
+        <p><a class="button button-primary" href="<?php echo esc_url(wp_nonce_url(add_query_arg(array('contact_group' => $filters['group'], 's' => $search), admin_url('admin-post.php?action=easyheadless_publication_export')), 'easyheadless_publication_export')); ?>">Export filtered CSV</a> Showing up to 500 matching contacts.</p>
+        <table class="widefat striped"><thead><tr><th>Email</th><th>Member verified at</th><th>Newsletter consent</th><th>Source story</th><th>Updated</th><th></th></tr></thead><tbody><?php if (!$rows) : ?><tr><td colspan="6">No contacts match these filters.</td></tr><?php endif; foreach ($rows as $row) : ?><tr><td><?php echo esc_html($row->email); ?></td><td><?php echo esc_html($row->verified_at ?: '—'); ?></td><td><?php echo $row->newsletter_consent ? 'Yes' : 'No'; ?></td><td><?php echo esc_html($row->source_article ?: '—'); ?></td><td><?php echo esc_html($row->updated_at); ?></td><td><a href="<?php echo esc_url(wp_nonce_url(admin_url('admin-post.php?action=easyheadless_publication_delete_contact&id=' . absint($row->id)), 'easyheadless_publication_delete_contact_' . absint($row->id))); ?>" onclick="return confirm('Delete this contact and revoke their sessions?')">Delete</a></td></tr><?php endforeach; ?></tbody></table></div>
         <?php EasyHeadless_Admin::close_module_page(); ?>
         <?php
     }
@@ -717,7 +741,9 @@ final class EasyHeadless_Publication
             wp_die('You are not allowed to export contacts.');
         }
         global $wpdb;
-        $rows = $wpdb->get_results("SELECT email, verified_at, newsletter_consent, source_article, created_at, updated_at FROM {$wpdb->prefix}eh_publication_contacts ORDER BY updated_at DESC", ARRAY_A); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $filters = self::contact_filters();
+        $where = $filters['where'];
+        $rows = $wpdb->get_results("SELECT email, verified_at, newsletter_consent, source_article, created_at, updated_at FROM {$wpdb->prefix}eh_publication_contacts{$where} ORDER BY updated_at DESC", ARRAY_A); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         nocache_headers();
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename=film-efiko-contacts-' . gmdate('Y-m-d') . '.csv');
@@ -868,7 +894,10 @@ final class EasyHeadless_Publication
             $layout = in_array($value['layout'], array('rail', 'lead', 'feature', 'portrait', 'editorial-rail', 'portrait-rail'), true) ? $value['layout'] : $definition['layout'];
             // Lists may overlap earlier sections; don't hide its only story through deduplication.
             $section_used = 'lists' === $key ? array() : $used;
-            $stories = self::curated_stories(isset($value['post_ids']) ? $value['post_ids'] : array(), $source_category_id, $count, $section_used, 'popular' === $source);
+            $post_ids = isset($value['post_ids']) ? $value['post_ids'] : array();
+            $stories = 'tv-documentary' === $key && 'latest' === $source
+                ? self::tv_documentary_stories($post_ids, $count, $section_used)
+                : self::curated_stories($post_ids, $source_category_id, $count, $section_used, 'popular' === $source);
             $used = array_values(array_unique(array_merge($used, $section_used)));
             $sections[] = array(
                 'key' => $key,
@@ -914,6 +943,29 @@ final class EasyHeadless_Publication
             return '/latest';
         }
         return '/category/' . $key;
+    }
+
+    private static function tv_documentary_stories($ids, $count, &$used)
+    {
+        $stories = array();
+        foreach (self::sanitize_ids($ids) as $id) {
+            if (count($stories) >= $count || in_array($id, $used, true)) {
+                continue;
+            }
+            $story = self::story_by_id($id);
+            if ($story) {
+                $stories[] = $story;
+                $used[] = $id;
+            }
+        }
+        if (count($stories) < $count) {
+            $fill = self::query_stories(array('tax_query' => array(array('taxonomy' => 'category', 'field' => 'slug', 'terms' => array('tv', 'documentary'), 'operator' => 'IN')), 'orderby' => 'date', 'order' => 'DESC'), $count - count($stories), $used);
+            foreach ($fill as $story) {
+                $stories[] = $story;
+                $used[] = $story['id'];
+            }
+        }
+        return $stories;
     }
 
     private static function curated_stories($ids, $category_id, $count, &$used, $popular = false)
@@ -1350,16 +1402,7 @@ final class EasyHeadless_Publication
 
     public static function contact($request)
     {
-        $email = sanitize_email($request->get_param('email'));
-        $name = sanitize_text_field($request->get_param('name'));
-        $message = sanitize_textarea_field($request->get_param('message'));
-        if (!$email || !is_email($email) || !$message) {
-            return new WP_Error('publication_contact_invalid', 'Name, email and message are required.', array('status' => 400));
-        }
-        self::upsert_contact($email, array('source_article' => 'contact'));
-        $recipient = get_option('admin_email');
-        $sent = wp_mail($recipient, 'Film Efiko website message from ' . $name, "From: {$name} <{$email}>\n\n{$message}", array('Reply-To: ' . $name . ' <' . $email . '>'));
-        return $sent ? rest_ensure_response(array('sent' => true)) : new WP_Error('publication_contact_failed', 'The message could not be sent.', array('status' => 503));
+        return EasyHeadless_Contact_Form::submit($request);
     }
 
     private static function upsert_contact($email, $changes)
